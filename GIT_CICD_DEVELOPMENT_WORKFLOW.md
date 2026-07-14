@@ -262,6 +262,35 @@ SAFE_SWE_LITE_MODEL
 
 ## 6. 开发顺序
 
+### Phase PRE：源码研读课程（SPEC 的前置条件）
+
+**在写 SPEC 之前，必须先吃透参考代码。** 否则 SPEC 是从想象出发的，不是从工程现实出发的。
+
+课程文件：`course/README.md`、`course/PROGRESS.md`
+
+教材：
+
+| 教材 | 路径 | 用途 |
+|---|---|---|
+| mini-swe-agent | `../mini-swe-agent/src/minisweagent/` | 入门（~300 行核心） |
+| SWE-agent | `../SWE-agent/sweagent/` | 深入（完整工程级） |
+
+七个模块（苏格拉底式提问驱动）：
+
+| # | 模块 | 核心文件 | 对应维度 |
+|---|---|---|---|
+| 1 | Agent 主循环 | mini: `agents/default.py` / SWE: `agent/agents.py` | 决策封装 |
+| 2 | 动作解析 | SWE: `tools/parsing.py` | 动作协议 |
+| 3 | 工具分发 | SWE: `tools/tools.py` | 工具系统 |
+| 4 | 护栏机制 | SWE: `tools/tools.py` (`should_block_action`) | 治理护栏 |
+| 5 | 反馈闭环 | SWE: `agent/agents.py` (`handle_action`, `step`) | 反馈闭环 |
+| 6 | 上下文管理 | SWE: `agent/history_processors.py` | 记忆 |
+| 7 | Mock LLM 测试 | SWE: `agent/models.py` / mini: `models/test_models.py` | LLM 抽象层 |
+
+每节课产物：`course/notes/module-0X-*.md` 笔记 + PROGRESS.md 更新。
+
+课程不产生 Git 操作（不写代码），纯学习。全部 7 节课结束后，进入 Phase 0。
+
 ### Phase 0：SPEC 与 PLAN（禁止写代码）
 
 **这是课程最关键的纪律——在 SPEC 与 PLAN 完成并通过冷启动验证之前，禁止编写任何实现代码。**
@@ -676,18 +705,17 @@ Git/CI 要点：
 如果以两周为开发周期：
 
 ```text
-Day 1:    需求调研、SPEC.md 完整版（含 §A.5 领域与机制设计）
-Day 2:    PLAN.md + GitHub 仓库 + Phase 0 文档 PR
-Day 3:    冷启动验证（换个 agent 读 SPEC+PLAN 试做 1-2 task）→ 修订 SPEC/PLAN
-Day 4:    Phase 1 项目骨架 + Phase 2 Action Protocol
-Day 5:    Phase 3 MockLLM + Agent Loop
-Day 6:    Phase 4 工具系统
-Day 7:    Phase 5 Guardrail（重点维度，多投入）
-Day 8:    Phase 6 Feedback Loop + Phase 7 Memory/Config
-Day 9:    Phase 8 CLI + Phase 9 三个机制演示
-Day 10-11: Phase 10 WebUI + Phase 11 Docker
-Day 12:   Phase 12 真实 LLM Provider + 凭据安全 + 部署上线
-Day 13:   Phase 13 SPEC_PROCESS 收尾 + AGENT_LOG 收尾
+Day 1-3:  Phase PRE：源码研读课程（7 个模块，每模块约 30-60 分钟）
+Day 4:    需求调研 + SPEC.md 完整版（含 §A.5 领域与机制设计）
+Day 5:    PLAN.md + 冷启动验证准备
+Day 6:    冷启动验证（换个 agent 读 SPEC+PLAN 试做 1-2 task）→ 修订 SPEC/PLAN
+Day 7:    Phase 1 项目骨架 + Phase 2 Action Protocol
+Day 8:    Phase 3 MockLLM + Agent Loop + Phase 4 工具系统
+Day 9:    Phase 5 Guardrail（重点维度，多投入）
+Day 10:   Phase 6 Feedback Loop + Phase 7 Memory/Config
+Day 11:   Phase 8 CLI + Phase 9 三个机制演示
+Day 12:   Phase 10 WebUI + Phase 11 Docker
+Day 13:   Phase 12 真实 LLM Provider + 凭据安全 + 部署上线
 Day 14:   REFLECTION + README + 最终检查 + 提交
 ```
 
