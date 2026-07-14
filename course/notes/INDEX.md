@@ -2,20 +2,24 @@
 
 ## 源码精读笔记
 
-| 模块 | 文件 | 状态 |
+| 节 | 笔记文件 | 状态 |
 |---|---|---|
 | 1. Agent 主循环 | `module-01-agent-loop.md` | ⬜ |
-| 2. 动作解析 | `module-02-action-parsing.md` | ⬜ |
-| 3. 工具分发 | `module-03-tool-dispatch.md` | ⬜ |
-| 4. 护栏机制 | `module-04-guardrails.md` | ⬜ |
+| 2. 模型抽象与环境 | `module-02-model-environment.md` | ⬜ |
+| 3. 动作解析与护栏 | `module-03-parsing-guardrails.md` | ⬜ |
+| 4. 历史处理与配置 | `module-04-history-config.md` | ⬜ |
 | 5. 反馈闭环 | `module-05-feedback-loop.md` | ⬜ |
-| 6. 上下文管理 | `module-06-context-memory.md` | ⬜ |
-| 7. Mock LLM 测试 | `module-07-mock-testing.md` | ⬜ |
+| 6. 上下文定位 | `module-06-context-localization.md` | ⬜ |
+| 7. 对照反思 | `module-07-reflection-synthesis.md` | ⬜ |
+
+## 设计决策记录
+
+每节课后记录对 SafeSWE-Lite 的设计影响：
+
+| 决策 | 来源 | 笔记文件 |
+|---|---|---|
+| （暂无） | - | - |
 
 ## 可视化笔记
 
 （暂无，课程开始后按需要生成）
-
-## SafeSWE-Lite 设计映射
-
-每节课结束后，将源码中的设计决策映射到 SafeSWE-Lite 的实现方案。

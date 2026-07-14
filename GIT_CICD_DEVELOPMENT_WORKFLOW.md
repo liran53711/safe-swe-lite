@@ -268,24 +268,29 @@ SAFE_SWE_LITE_MODEL
 
 课程文件：`course/README.md`、`course/PROGRESS.md`
 
-教材：
+学习路线：`docs/research/REFERENCE_STUDY_PLAN.md`
 
-| 教材 | 路径 | 用途 |
+教材（5 个项目，存放在 `../agent-references/`，不进入本仓库）：
+
+| # | 教材 | 用途 |
 |---|---|---|
-| mini-swe-agent | `../mini-swe-agent/src/minisweagent/` | 入门（~300 行核心） |
-| SWE-agent | `../SWE-agent/sweagent/` | 深入（完整工程级） |
+| 1 | mini-swe-agent | 最小可运行 harness 架构（入门） |
+| 2 | SWE-agent | 完整 harness：解析/护栏/历史/配置 |
+| 3 | Aider | 反馈闭环参考：lint/test/retry |
+| 4 | AutoCodeRover | 上下文定位 → 补丁的思路 |
+| 5 | Agentless | 非 agent pipeline 作为设计对照 |
 
-七个模块（苏格拉底式提问驱动）：
+七节课程（苏格拉底式提问驱动）：
 
-| # | 模块 | 核心文件 | 对应维度 |
+| # | 主题 | 主教材 | 对应维度 |
 |---|---|---|---|
-| 1 | Agent 主循环 | mini: `agents/default.py` / SWE: `agent/agents.py` | 决策封装 |
-| 2 | 动作解析 | SWE: `tools/parsing.py` | 动作协议 |
-| 3 | 工具分发 | SWE: `tools/tools.py` | 工具系统 |
-| 4 | 护栏机制 | SWE: `tools/tools.py` (`should_block_action`) | 治理护栏 |
-| 5 | 反馈闭环 | SWE: `agent/agents.py` (`handle_action`, `step`) | 反馈闭环 |
-| 6 | 上下文管理 | SWE: `agent/history_processors.py` | 记忆 |
-| 7 | Mock LLM 测试 | SWE: `agent/models.py` / mini: `models/test_models.py` | LLM 抽象层 |
+| 1 | Agent 主循环 | mini-swe-agent `agents/default.py` | 决策封装 |
+| 2 | 模型抽象与环境 | mini-swe-agent `models/` + `environments/` | LLM 抽象层 |
+| 3 | 动作解析与护栏 | SWE-agent `tools/parsing.py` + `tools/tools.py` | 动作协议 + 治理护栏 |
+| 4 | 历史处理与配置 | SWE-agent `agent/history_processors.py` + `config/` | 记忆 + 配置 |
+| 5 | 反馈闭环 | Aider `linter.py` + `commands.py` | 反馈闭环 |
+| 6 | 上下文定位 | AutoCodeRover `app/search/` | 工具系统 |
+| 7 | 对照反思 + SPEC 准备 | Agentless 全项目 + 汇总 | 收尾 |
 
 每节课产物：`course/notes/module-0X-*.md` 笔记 + PROGRESS.md 更新。
 
