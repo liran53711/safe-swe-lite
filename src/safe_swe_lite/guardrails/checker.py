@@ -8,7 +8,6 @@ Known L1 boundaries (documented, not patched further):
 """
 
 import re
-from pathlib import Path
 
 from pydantic import BaseModel
 
@@ -80,8 +79,9 @@ class StaticChecker:
     def check(self, action: Action) -> GuardrailDecision:
         if action.name == "read_file":
             path = action.parameters.get("path", "")
-            # 先 strip 再取 basename：Windows 打开文件时自动剥尾随空格，`.env ` 会绕过保护
-            name = Path(str(path).strip()).name
+            # 归一化两种分隔符后取 basename：Windows 下 pathlib 认反斜杠，Linux CI 不认；
+            # 显式替换保证两个平台判定一致。strip 防 Windows 打开文件时自动剥尾随空格
+            name = str(path).strip().replace("\\", "/").rsplit("/", 1)[-1]
             if name.casefold() in _PROTECTED_CASEFOLD:
                 return GuardrailDecision(blocked=True, layer=LAYER_L1, reason=f"reading protected file '{name}'")
             return GuardrailDecision(blocked=False)
