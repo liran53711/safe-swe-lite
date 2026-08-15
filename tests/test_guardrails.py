@@ -2,6 +2,7 @@ import pytest
 
 from safe_swe_lite.agent.protocol import Action
 from safe_swe_lite.guardrails.checker import StaticChecker
+from safe_swe_lite.guardrails.code_scanner import CodeScanner
 from safe_swe_lite.guardrails.hitl import HitlGate, HitlState
 from safe_swe_lite.guardrails.scope_fence import ScopeFence
 
@@ -295,3 +296,133 @@ def test_gate_reject_then_approve_noop(gate):
     gate.reject()
     decision = gate.approve()  # REJECTED 态下 approve 无效
     assert decision.hitl_state == HitlState.NO_INTERVENTION
+
+
+# ---- L4 代码内容扫描：ast 解析写入内容，拦截禁用符号的真实调用点 ----
+
+
+@pytest.fixture
+def scanner():
+    return CodeScanner(banned_symbols=["eval", "exec", "subprocess", "pickle.loads"])
+
+
+def test_scanner_blocks_eval_in_python(scanner):
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "def f(s):\n    return eval(s)\n"})
+    decision = scanner.check(action)
+    assert decision.blocked and decision.layer == 4 and "eval" in decision.reason
+
+
+def test_scanner_blocks_subprocess_call(scanner):
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "import subprocess\nsubprocess.run(['rm', '-rf', '/'])\n"})
+    assert scanner.check(action).blocked
+
+
+def test_scanner_allows_clean_code(scanner):
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "def add(a, b):\n    return a + b\n"})
+    assert not scanner.check(action).blocked
+
+
+def test_scanner_reports_line_number(scanner):
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "x = 1\ny = 2\nexec('print(3)')\n"})
+    decision = scanner.check(action)
+    assert decision.blocked and "line 3" in decision.reason
+
+
+def test_scanner_ignores_non_python_files(scanner):
+    action = Action(name="write_file", parameters={
+        "path": "notes.txt", "content": "eval is fine in a text file"})
+    assert not scanner.check(action).blocked
+
+
+def test_scanner_does_not_mistake_comment_or_string(scanner):
+    # AST 不误伤注释和字符串里的 eval 字样
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "# eval is dangerous\ns = \"eval\"\nx = 1\n"})
+    assert not scanner.check(action).blocked
+
+
+def test_scanner_ignores_syntax_errors(scanner):
+    # 语法错误交给反馈闭环 lint，L4 不拦
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "def f(:\n    pass\n"})
+    assert not scanner.check(action).blocked
+
+
+# ---- 终审修复回归：edit_file 的 new_string / 模块别名绕过 / 超大内容跳过 / 类型防御 ----
+
+
+def test_scanner_scans_edit_file_new_string(scanner):
+    action = Action(name="edit_file", parameters={
+        "path": "x.py", "old_string": "return x", "new_string": "return eval(x)"})
+    assert scanner.check(action).blocked
+
+
+def test_scanner_blocks_subprocess_alias(scanner):
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "import subprocess as sp\nsp.run(['ls'])\n"})
+    assert scanner.check(action).blocked
+
+
+def test_scanner_blocks_from_import_alias(scanner):
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "from subprocess import run\nrun(['ls'])\n"})
+    assert scanner.check(action).blocked
+
+
+def test_scanner_still_blocks_builtins_import_eval(scanner):
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "from builtins import eval\neval(x)\n"})
+    assert scanner.check(action).blocked
+
+
+def test_scanner_blocks_pickle_loads_fullname(scanner):
+    action = Action(name="write_file", parameters={
+        "path": "x.py", "content": "import pickle\npickle.loads(data)\n"})
+    assert scanner.check(action).blocked
+
+
+def test_scanner_skips_oversized_content(scanner):
+    # 超过 1MB 跳过 AST 扫描（解析成本非线性），放行不卡死
+    big = "x = 1\n" * 90_000  # ~540KB 单行语义简单，再乘够 1MB 以上
+    action = Action(name="write_file", parameters={"path": "x.py", "content": big * 3})
+    assert not scanner.check(action).blocked
+
+
+def test_scanner_type_defense_non_string_params(scanner):
+    assert not scanner.check(Action(name="write_file", parameters={"path": 123, "content": "eval(x)"})).blocked
+    assert not scanner.check(Action(name="write_file", parameters={"path": "x.py", "content": 123})).blocked
+
+
+# ---- GuardrailChain 组合器：L1 -> L2 -> L3 -> L4，首个拦截者胜出 ----
+
+def test_chain_first_block_wins(tmp_path):
+    from safe_swe_lite.guardrails import GuardrailChain
+    chain = GuardrailChain(workspace=tmp_path)
+    decision = chain.check(Action(name="run_command", parameters={"command": "rm -rf /"}))
+    assert decision.blocked and decision.layer == 1
+
+
+def test_chain_all_layers_pass_allows(tmp_path):
+    from safe_swe_lite.guardrails import GuardrailChain
+    chain = GuardrailChain(workspace=tmp_path)
+    decision = chain.check(Action(name="run_command", parameters={"command": "pytest -q"}))
+    assert not decision.blocked
+
+
+def test_chain_auto_approve_passes_gray_command(tmp_path):
+    from safe_swe_lite.guardrails import GuardrailChain
+    chain = GuardrailChain(workspace=tmp_path, auto_approve=True)
+    decision = chain.check(Action(name="run_command", parameters={"command": "git push origin main"}))
+    assert not decision.blocked and decision.hitl_state == "approved"
+
+
+def test_chain_blocks_eval_write_at_layer4(tmp_path):
+    from safe_swe_lite.guardrails import GuardrailChain
+    chain = GuardrailChain(workspace=tmp_path)
+    action = Action(name="write_file", parameters={"path": "x.py", "content": "eval('1')\n"})
+    decision = chain.check(action)
+    assert decision.blocked and decision.layer == 4
