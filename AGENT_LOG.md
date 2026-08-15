@@ -143,3 +143,32 @@
 **教训**:
 1. **"状态机"类名的代码不一定是状态机**：PLAN 代码片段把状态放进决策返回值而非对象内部，5 个原测试全部只断言单次决策形状——评审员证明"把 approve/reject 改成静态返回，5 个测试照样全绿"。**测试必须区分'看起来像状态机'和'是状态机'**：approve→重查→放行这条闭环测试是判据
 2. 单槽记忆（只记一个待决动作）是刻意简化，WebUI 多动作队列时需升级 dict——已记录为 LOW 待办
+
+## Task 9 — 护栏 L4 代码扫描 + GuardrailChain 组合器（2026-08-15，护栏收官）
+
+- **Worktree**: `../safe-swe-lite-task-09`，分支 `task/09-code-scanner`
+- **Implementer**: executor subagent × 2 轮（实现 + 修复）
+- **产出**: `guardrails/code_scanner.py`（AST 双分支扫描 + 别名解析 + 1MB 上限）、`guardrails/__init__.py`（GuardrailChain）、checker.py 补 LAYER_L4、test_guardrails.py 追加 9+9 个测试
+- **验证**: 90→99 passed，ruff 干净
+- **Spec 评审**: ✅ APPROVE（implementer 发现 PLAN 自相矛盾：DEFAULT_BANNED 有点分全名 "pickle.loads"，但 Attribute 分支只查裸模块名——按 PLAN 代码 pickle.loads 拦不住）
+- **质量评审**: ❌ REJECT（4 Important，全部实测）→ 修复 → 复审 ✅ APPROVE
+- **Important 修复**:
+  1. **edit_file 从不被扫描**——参数是 old_string/new_string 没有 content 字段，L4 恒放行（端到端实测 write 干净 + edit 插 eval 绕过全部四层）。修复按 action.name 分支取 content/new_string
+  2. **ast.parse 无大小上限**——5MB 实测 24s/2.6GB。1MB 上限跳过扫描
+  3. **import 别名绕过**——`import subprocess as sp; sp.run()` 一行惯用法废掉整个禁令。修复收集 Import/ImportFrom 别名映射，调用点解析真实模块名（builtins 特判保持身份）
+  4. **auto_approve 接线死锁**——loop 调用点传不进去，mock 演示遇灰命令 5 次后 guardrail_exhausted。GuardrailChain 构造函数接收 auto_approve 并透传 hitl_state
+- **终审遗留**: builtins.eval 属性形态（`import builtins; builtins.eval(x)`）一行名单修复（我直接改了）；赋值别名绕过（`f = subprocess.run`）文档化为边界（无数据流分析的静态 AST 检查的经典局限）
+
+**护栏四层总结**（main contribution 完成）:
+
+| 层 | 机制 | 测试数 | 军备竞赛轮数 |
+|---|---|---|---|
+| L1 静态黑名单 | 任意位置正则 + rm 语义双条件 + 引号剥离 | 28+ | 3 轮 |
+| L2 范围围栏 | resolve + is_relative_to + 平台路径归一化 | 9 | 1 轮 |
+| L3 HITL 状态机 | 真状态机（终态记忆）+ auto_approve 接线 | 10 | 1 轮（状态机重写） |
+| L4 代码扫描 | AST 双分支 + 别名解析 + 1MB 上限 | 16 | 1 轮 |
+
+**教训**:
+1. **参数契约要读工具实现**：L4 声称覆盖 edit_file，但没人核对过 edit_file 的参数表——`content` vs `new_string` 一字之差，整层失效。护栏层声称覆盖的动作必须逐个对照工具签名
+2. 评审员三问的价值：编辑动作扫什么？大文件怎么办？别名怎么处理？——每个都是"读了工具实现才知道"的问题
+3. 四层各自的文档化边界共同构成护栏的诚实性：L1 四条、L3 软复核层、L4 赋值别名——"知道哪拦不住"比"声称全拦住"更安全
