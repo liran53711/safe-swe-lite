@@ -225,6 +225,21 @@ def test_parse_missing_action_key_raises():
         parse_action({"message": '{"parameters": {}}'})
 
 
+def test_parse_missing_message_key_raises():
+    with pytest.raises(ProtocolError, match="missing 'message'"):
+        parse_action({})
+
+
+def test_parse_missing_parameters_defaults_to_empty():
+    action = parse_action({"message": '{"action": "submit"}'})
+    assert action.parameters == {}
+
+
+def test_parse_non_dict_parameters_raises():
+    with pytest.raises(ProtocolError, match="'parameters' must be an object"):
+        parse_action({"message": '{"action": "read_file", "parameters": "bad"}'})
+
+
 VALID_NAMES = {"read_file", "write_file", "edit_file", "run_command",
                "search_pattern", "list_files", "submit"}
 
@@ -270,7 +285,9 @@ def parse_action(response: dict) -> Action:
     The model's message must be JSON of the form
     {"action": "<tool_name>", "parameters": {...}}.
     """
-    message = response.get("message", "")
+    if "message" not in response:
+        raise ProtocolError("LLM output missing 'message' key")
+    message = response["message"]
     try:
         data = json.loads(message)
     except json.JSONDecodeError as e:
@@ -282,13 +299,16 @@ def parse_action(response: dict) -> Action:
     name = data["action"]
     if name not in VALID_ACTIONS:
         raise ProtocolError(f"unknown action '{name}'")
-    return Action(name=name, parameters=data.get("parameters", {}))
+    parameters = data.get("parameters", {})
+    if not isinstance(parameters, dict):
+        raise ProtocolError("'parameters' must be an object")
+    return Action(name=name, parameters=parameters)
 ```
 
 - [ ] **Step 4: 跑测试确认通过**
 
 Run: `pytest tests/test_protocol.py -v`
-Expected: 5 passed
+Expected: 8 passed
 
 - [ ] **Step 5: Commit**
 
