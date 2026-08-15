@@ -188,3 +188,34 @@
 1. **测试文件与实现片段必须由同一个人对照写**——PLAN 里两段代码由我分别起草，三处不一致（文案/格式/import）。以后 PLAN 的测试和实现代码块要交叉校验后再发布
 2. **"核心交付物 0 覆盖"是常见的假完成**：模块写了、测试写了，但测试全在测辅助函数。每个 task 收尾问一句"本 task 的核心 API 有直接测试吗"
 3. pytest 退出码语义：rc 1 才是"测试失败"（可反馈），rc 5 是"没有测试"（不可反馈）——把不可修的错误喂给模型重试是浪费轮次
+
+## Task 11 — 记忆：评分 + 分级上下文（2026-08-16）
+
+- **Worktree**: `../safe-swe-lite-task-11`，分支 `task/11-memory`
+- **Implementer**: executor subagent × 2 轮（实现 + 修复）
+- **产出**: `memory/scoring.py`（纯规则评分）、`memory/store.py`（MemoryStore 分级上下文）、test_memory.py（7→10 tests）
+- **验证**: 115→118 passed，ruff 干净
+- **Spec 评审**: ✅ APPROVE（零偏差；发现 SCORES 死键冗余）
+- **质量评审**: ❌ REJECT（2 High）→ 修复 → 复审 ✅ APPROVE
+- **High**: ① 评分与存储完全脱节——score_observation 零调用方，assemble() 用 old[-5:] 时序选取而非评分；50 轮会话的第 1 轮架构信息彻底丢失（REPL 实证）；② 摘要裸 80 字符头部截断（信息在尾部被切掉）+ 冒充 user 消息
+- **修复**: assemble() 按 score_observation 取 top-N（平局偏向新消息，升序取尾实现）；_summarize 尾部截断 + [kind] 前缀；摘要 role="system"；recent_window<=0 防御；死键删除
+
+**教训**:
+1. **模块内部的接口要自洽**：Task 11 交付的两个文件（评分、存储）互不调用——单独看都对，合起来是断的。每个 task 收尾问"本 task 交付的模块之间有数据流动吗"
+2. 摘要的截断方向是信息论问题：消息开头是 greeting、结尾是结果——尾部截断保信息量，头部截断保垃圾
+
+## Task 12 — 配置系统（2026-08-16）
+
+- **Worktree**: `../safe-swe-lite-task-12`，分支 `task/12-config`
+- **Implementer**: executor subagent × 2 轮（实现 + 修复）+ 我直接修 1 处 HIGH
+- **产出**: `config/loader.py`（5 个 Pydantic 模型 + load_config）、包内 default.yaml、test_config.py（4→8 tests）
+- **验证**: 112→116 passed，ruff 干净
+- **Spec 评审**: ✅ APPROVE
+- **质量评审**: APPROVE（3 Important）→ 修复 → 复审 ❌ REJECT（1 HIGH）→ 修复 ✅
+- **Important**: ① 打包路径错误——parents[3] 只在源树成立，且 default.yaml 不进 wheel；修复 importlib.resources + package-data（wheel 布局模拟实测通过）；② 未知键静默忽略——extra="forbid" fail-fast；③ GuardrailConfig 4 个死字段——改名接线 GuardrailChain、删 allowed_dirs（YAGNI）
+- **HIGH（复审抓到）**: implementer 声称修复的"顶层非 dict 抛 ValidationError"本身是坏的——from_exception_data 缺 ctx/input 键抛 TypeError。修复一行 + 回归测试。**教训：声称的修复必须配回归测试，评审员实测发现 115 passed 全绿恰恰因为没有这个测试**
+
+**教训**:
+1. **配置静默失败比报错更危险**："你以为设了 max_turn=100，实际跑 50"——extra="forbid" 是配置系统的默认正确选择
+2. 打包路径算术（parents[N]）在 editable 下蒙蔽人——资源加载必须用 importlib.resources，让 wheel 安装路径天然正确
+3. 与 Task 11 相同的教训：两个 task 并行跑在独立 worktree，全局 editable install 冲突——用 PYTHONPATH=src 跑测试是标准解法
