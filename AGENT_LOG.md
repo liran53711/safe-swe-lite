@@ -85,3 +85,4 @@
 1. **环境双面性**：Bash 工具里 `rg --version` 有输出 ≠ Python subprocess 能找到 rg——Git Bash 的 PATH 和 Windows PATH 是两回事。工具可用性判断要区分 shell 环境
 2. ReDoS 是 LLM 输入类工具的原生威胁：任何执行 LLM 提供字符串的引擎（正则/SQL/shell）都需要超时或长度边界，光靠"LLM 不会写病态正则"是靠不住的
 3. 截断收敛在 Dispatcher 单点是正确架构——新工具自动获得保护
+4. **ruff 版本漂移（CI 第二轮教训）**：CI 的 lint job 装最新 ruff，默认规则集随版本扩张（BLE001/PLW1510 在新版变默认）。implementer 的"本地 ruff 干净"不可信——本地 ruff 0.15.14 过不了 CI 的检查（6 个错误：I001×2、BLE001、PLW1510×3）。修复：多行 import 格式、`except Exception` 加 `# noqa: BLE001`（有意设计）、3 处 subprocess.run 显式 `check=False`。**教训：lint 验证必须用与 CI 相同的 ruff 版本，或者干脆在 CI 里跑 `ruff check` 作为唯一的 lint 真相源，本地跑不过是浪费**
