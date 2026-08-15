@@ -6,6 +6,8 @@ dist/
 build/
 .venv/
 venv/
+.pytest_cache/
+.ruff_cache/
 
 # Environment
 .env
