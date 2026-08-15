@@ -8,10 +8,13 @@ from safe_swe_lite.guardrails.scope_fence import ScopeFence
 
 
 class GuardrailChain:
-    def __init__(self, workspace, require_approval=None, banned_symbols=None, auto_approve: bool = False):
+    def __init__(self, workspace, require_approval=None, banned_symbols=None,
+                 blocklist=None, standalone=None, block_unless_regex=None,
+                 auto_approve: bool = False):
         self.auto_approve = auto_approve
         self.layers = [
-            StaticChecker(),
+            StaticChecker(blocklist=blocklist, standalone=standalone,
+                          block_unless_regex=block_unless_regex),
             ScopeFence(workspace=workspace),
             HitlGate(require_approval=require_approval),
             CodeScanner(banned_symbols=banned_symbols),

@@ -1,0 +1,21 @@
+workspace: "./examples/sample_project"
+max_turns: 50
+timeout_seconds: 600
+command_timeout: 30
+
+model:
+  provider: "mock"
+  mock_outputs: []
+
+guardrails:
+  standalone: []            # 空 = 用代码默认
+  require_approval: ["git push", "pip install", "npm publish", "kubectl delete"]
+  banned_symbols: ["eval", "exec", "subprocess"]
+
+feedback:
+  validators: ["compile", "test"]
+  max_retries: 3
+
+memory:
+  recent_window: 10
+  embedding: false
