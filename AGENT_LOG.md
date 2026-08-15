@@ -127,3 +127,19 @@
 1. **同类 bug 会在兄弟模块复发**：Task 6 修了尾随空格，Task 7 评审发现尾随点变体。修 bug 时要想"这个 bug 类还有哪些变体"，一次修全
 2. **Windows 文件系统语义是隐蔽攻击面**：尾随空格、尾随点、盘符大小写、UNC——护栏必须用 resolve/规范化后的路径判定，且每个平台差异都要有测试
 3. 评审员 31 项实测中代码行为全对、缺口在测试覆盖——安全代码"行为对但没测试"等于"行为没有保障"
+
+## Task 8 — 护栏 L3 HITL 状态机（2026-08-15）
+
+- **Worktree**: `../safe-swe-lite-task-08`，分支 `task/08-hitl`
+- **Implementer**: executor subagent × 2 轮（实现 + 状态机重写）
+- **产出**: `guardrails/hitl.py`（HitlState str-Enum + HitlGate）、checker.py 补 LAYER_L3、test_guardrails.py 追加 5→10 个 L3 测试
+- **验证**: 76→81 passed，ruff 干净
+- **Spec 评审**: ✅ APPROVE（零偏差）
+- **质量评审**: ❌ REJECT → 重写 → 复审 ✅ APPROVE
+- **Critical**: **PLAN 的"状态机"其实是无状态决策工厂**——approve()/reject() 与 check() 完全脱钩，`_pending_action` 只写不读，批准后重查同一动作仍 PENDING（规范 HITL 流程 check→approve→recheck→execute 死锁）。重写为真状态机：_state 字段 + 已决终态尊重 + 新 PENDING 覆盖旧动作 + approve/reject 无 PENDING 时 noop
+- **评审员边角推演亮点**：非灰色命令不清 pending 槽是防死锁的必要组成；人工拒绝粘性优先于 auto_approve（mock 不能推翻人工拒绝）；所有歧义路径统一偏向"重新询问"而非"自动放行"
+- **威胁模型文档化**：L3 是软复核层 best-effort（前缀匹配可被空格/引号/链式绕过），硬安全由 L1/L4 兜底——和 L1 的边界文档化同一纪律
+
+**教训**:
+1. **"状态机"类名的代码不一定是状态机**：PLAN 代码片段把状态放进决策返回值而非对象内部，5 个原测试全部只断言单次决策形状——评审员证明"把 approve/reject 改成静态返回，5 个测试照样全绿"。**测试必须区分'看起来像状态机'和'是状态机'**：approve→重查→放行这条闭环测试是判据
+2. 单槽记忆（只记一个待决动作）是刻意简化，WebUI 多动作队列时需升级 dict——已记录为 LOW 待办
