@@ -7,7 +7,7 @@
 from pathlib import Path
 
 from safe_swe_lite.agent.protocol import Action
-from safe_swe_lite.guardrails.checker import GuardrailDecision, LAYER_L2
+from safe_swe_lite.guardrails.checker import LAYER_L2, GuardrailDecision
 
 # 新增文件类动作必须在此登记，否则围栏静默放行
 FILE_ACTIONS = {"read_file", "write_file", "edit_file", "search_pattern", "list_files"}
