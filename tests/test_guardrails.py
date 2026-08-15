@@ -2,6 +2,7 @@ import pytest
 
 from safe_swe_lite.agent.protocol import Action
 from safe_swe_lite.guardrails.checker import StaticChecker
+from safe_swe_lite.guardrails.hitl import HitlGate, HitlState
 from safe_swe_lite.guardrails.scope_fence import ScopeFence
 
 
@@ -210,3 +211,87 @@ def test_fence_blocks_symlink_escape(fence, tmp_path):
 def test_fence_blocks_non_string_path(fence):
     assert fence.check(Action(name="read_file", parameters={"path": 123})).blocked
     assert fence.check(Action(name="read_file", parameters={"path": None})).blocked
+
+
+# ---- L3 HITL 状态机：灰色命令暂停等人类批准（仅对未被子层拦截的动作判定） ----
+
+REQUIRE_APPROVAL = ["git push", "pip install", "npm publish", "kubectl delete"]
+
+
+@pytest.fixture
+def gate():
+    return HitlGate(require_approval=REQUIRE_APPROVAL)
+
+
+def test_gate_flags_git_push_for_approval(gate):
+    action = Action(name="run_command", parameters={"command": "git push origin main"})
+    decision = gate.check(action)
+    assert decision.blocked and decision.hitl_state == HitlState.PENDING
+
+
+def test_gate_passes_pytest_without_approval(gate):
+    action = Action(name="run_command", parameters={"command": "pytest -q"})
+    decision = gate.check(action)
+    assert not decision.blocked and decision.hitl_state == HitlState.NO_INTERVENTION
+
+
+def test_gate_approve_transitions_to_approved(gate):
+    action = Action(name="run_command", parameters={"command": "git push origin main"})
+    gate.check(action)
+    decision = gate.approve()
+    assert decision.blocked is False and decision.hitl_state == HitlState.APPROVED
+
+
+def test_gate_reject_transitions_to_rejected(gate):
+    action = Action(name="run_command", parameters={"command": "git push origin main"})
+    gate.check(action)
+    decision = gate.reject()
+    assert decision.blocked and decision.hitl_state == HitlState.REJECTED
+
+
+def test_gate_auto_decide_for_mock_mode(gate):
+    action = Action(name="run_command", parameters={"command": "git push origin main"})
+    decision = gate.check(action, auto_approve=True)
+    assert not decision.blocked and decision.hitl_state == HitlState.APPROVED
+
+
+# ---- 复审修复：真状态机（approve/reject 与 check 脱钩的 REJECT 修复回归） ----
+
+
+def test_gate_approve_then_recheck_allows(gate):
+    action = Action(name="run_command", parameters={"command": "git push origin main"})
+    gate.check(action)
+    gate.approve()
+    decision = gate.check(action)
+    assert not decision.blocked and decision.hitl_state == HitlState.APPROVED
+
+
+def test_gate_reject_then_recheck_blocks(gate):
+    action = Action(name="run_command", parameters={"command": "git push origin main"})
+    gate.check(action)
+    gate.reject()
+    decision = gate.check(action)
+    assert decision.blocked and decision.hitl_state == HitlState.REJECTED
+
+
+def test_gate_approve_without_pending_is_noop(gate):
+    decision = gate.approve()
+    assert decision.hitl_state == HitlState.NO_INTERVENTION
+
+
+def test_gate_new_pending_overrides_old(gate):
+    a = Action(name="run_command", parameters={"command": "git push origin main"})
+    b = Action(name="run_command", parameters={"command": "pip install numpy"})
+    gate.check(a)
+    gate.check(b)
+    gate.approve()
+    assert gate.check(b).hitl_state == HitlState.APPROVED  # 批准的是最新的 b
+    assert gate.check(a).hitl_state == HitlState.PENDING    # a 未决
+
+
+def test_gate_reject_then_approve_noop(gate):
+    action = Action(name="run_command", parameters={"command": "git push origin main"})
+    gate.check(action)
+    gate.reject()
+    decision = gate.approve()  # REJECTED 态下 approve 无效
+    assert decision.hitl_state == HitlState.NO_INTERVENTION

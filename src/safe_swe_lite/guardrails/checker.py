@@ -15,6 +15,7 @@ from safe_swe_lite.agent.protocol import Action
 
 LAYER_L1 = 1
 LAYER_L2 = 2
+LAYER_L3 = 3
 
 DEFAULT_BLOCKLIST = ["rm -rf /", "sudo", "chmod 777", "git push --force", "curl ", "wget ", "> /dev/sda", "mkfs", "dd if="]
 # 交互式编辑器无论带不带参数都会挂起无 TTY 的 agent 循环，故按首词前缀拦截
