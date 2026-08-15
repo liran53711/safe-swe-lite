@@ -72,7 +72,8 @@ class Agent:
                         "role": "user",
                         "content": f"Action blocked by guardrail layer {decision.layer}: {decision.reason}",
                     })
-                    self._trace.append({"kind": "guardrail", "data": decision})
+                    trace_data = decision.model_dump(mode="json") if hasattr(decision, "model_dump") else decision
+                    self._trace.append({"kind": "guardrail", "data": trace_data})
                     continue
             result = self.tools.execute(action)
             self._messages.append({"role": "user", "content": f"Observation: {format_observation(result)}"})
