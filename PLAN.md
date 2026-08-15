@@ -999,6 +999,22 @@ git add src/safe_swe_lite/guardrails/ tests/test_guardrails.py
 git commit -m "feat: L1 guardrail with prefix/standalone/regex-whitelist matching"
 ```
 
+### Task 6 实现后修订（三轮质量评审对抗性测试后，2026-08-15）
+
+L1 是安全核心，评审员做了真实对抗性测试（把护栏当攻击目标），三轮 REJECT 后 APPROVE。最终实现与 PLAN 原片段有重大差异，**实现 Task 7-9 前必须读完本节**：
+
+1. **GuardrailDecision 是 Pydantic BaseModel**（非 dataclass）：字段 `blocked: bool`、`layer: int = 0`、`reason: str = ""`、`requires_approval: bool = False`、`hitl_state: str = ""`。L3 将使用 `requires_approval`（包装器高危内容路由人工确认）和 `hitl_state`（pending/approved/rejected）。
+2. **对抗性修复清单**（28 个测试覆盖）：
+   - HIGH_RISK_PATTERNS 任意位置正则（sudo/chmod 777/git push --force/curl/wget/mkfs/dd/> /dev/sd*）
+   - rm 语义双条件检查（递归标志含 GNU 长选项 + 破坏性目标含尾随斜杠/置换/引号剥离），任意位置 RM_TOKEN 执行 + fall-through 控制流
+   - radare2 白名单 -c 载荷转义检查（`[!;`$()]` 拦截）
+   - 敏感文件：Path().name + casefold + strip + cat 家族命令检测
+   - 非字符串/空命令拦截
+3. **文档化边界**（checker.py docstring，不再打补丁）：grep/sed 读 .env、eval 包装器、纯文本误伤、深度混淆 → 委托 L3/L4/沙箱。
+4. **遗留 LOW**：loop.py 的 trace 存原始 ToolResult 对象需 asdict（WebUI 任务前处理）。
+
+最终测试数：test_guardrails.py 28 个（含全部对抗向量），全量 63 passed。
+
 ---
 
 ## Task 7: 护栏 L2 — 范围围栏

@@ -86,3 +86,28 @@
 2. ReDoS 是 LLM 输入类工具的原生威胁：任何执行 LLM 提供字符串的引擎（正则/SQL/shell）都需要超时或长度边界，光靠"LLM 不会写病态正则"是靠不住的
 3. 截断收敛在 Dispatcher 单点是正确架构——新工具自动获得保护
 4. **ruff 版本漂移（CI 第二轮教训）**：CI 的 lint job 装最新 ruff，默认规则集随版本扩张（BLE001/PLW1510 在新版变默认）。implementer 的"本地 ruff 干净"不可信——本地 ruff 0.15.14 过不了 CI 的检查（6 个错误：I001×2、BLE001、PLW1510×3）。修复：多行 import 格式、`except Exception` 加 `# noqa: BLE001`（有意设计）、3 处 subprocess.run 显式 `check=False`。**教训：lint 验证必须用与 CI 相同的 ruff 版本，或者干脆在 CI 里跑 `ruff check` 作为唯一的 lint 真相源，本地跑不过是浪费**
+
+## Task 6 — 护栏 L1 静态黑名单（2026-08-15，三轮军备竞赛）
+
+- **Worktree**: `../safe-swe-lite-task-06`，分支 `task/06-guardrail-l1`
+- **Implementer**: executor subagent × 4 轮（实现 + 3 轮修复）
+- **产出**: `guardrails/checker.py`（GuardrailDecision BaseModel + StaticChecker）、`tests/test_guardrails.py`（8→28 tests）
+- **验证**: 43→63 passed，ruff 干净
+- **Spec 评审**: ✅ APPROVE（implementer 发现 PLAN 自相矛盾：vim 在精确匹配表但测试要求前缀拦截——交互式编辑器必须前缀拦，REPL 只拦裸启动）
+- **质量评审**: ❌ REJECT ×3 → 终审 ✅ APPROVE。评审员做真实对抗性测试，每轮都找到新绕过
+
+**三轮军备竞赛的绕过清单（全部已修）**：
+| 轮 | 发现 | 修复 |
+|---|---|---|
+| 1 | `sh -c 'rm -rf /'` 套壳、`echo hi; sudo` 链、radare2 `-c '!rm -rf /'` 白名单逃逸、`.ENV` 大小写、`cat .env` 绕 read_file | 任意位置正则 + requires_approval 路由 + payload 转义检查 + casefold |
+| 2 | `rm -Rf /`（大写）、`rm -rf -- /`（--）、`rm / -rf`（getopt 置换）、前缀条目 `echo hi; sudo` 同类 | rm 语义双条件检查（递归标志+破坏性目标） |
+| 3 | `echo hi; rm -rf .`（语义检查门控在首词）、`--recursive` 长选项、`~/` 尾随斜杠、`rm "-rf" /` 引号 | 任意位置 RM_TOKEN + fall-through + 长选项 + 边界 lookahead |
+
+**文档化边界**（checker.py docstring）：grep/sed 读 .env、eval 包装器、纯文本误伤、深度混淆——明确委托 L3/L4/沙箱，不再打补丁。
+
+**教训**（本项目最重要的工程课）:
+1. **护栏验收标准**：不能只测"规则在预期输入上生效"，必须测"规则在对抗输入上不失效"。原 8 个测试全是前者，三轮 REJECT 全是后者
+2. **军备竞赛必须有收口条件**：每轮都能找到新绕过（正则永远有下一个变体），所以 L1 的 docstring 写了四条已知边界——分层防御的意义就是单层不完美但组合可靠。无限打补丁会把 L1 变成正则沼泽
+3. **评审员建议的代码也要验证**：评审第一轮给的 rm 正则实测是死代码（不匹配任何变体），implementer 实证后修正。信任但要验证
+4. **安全方向的误伤可接受**：`echo "rm -rf /"` 纯文本被拦——误伤的成本是 LLM 收到 reason 换个说法，漏拦的成本是数据丢失。不对称的
+5. 遗留 LOW（WebUI 任务前处理）：真实 ToolResult 对象进 trace 需 asdict 才能 JSON 序列化
