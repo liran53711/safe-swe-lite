@@ -575,6 +575,19 @@ git add src/safe_swe_lite/agent/loop.py tests/test_agent_loop.py
 git commit -m "feat: implement agent main loop with structured stop conditions"
 ```
 
+### Task 4 实现后修订（质量评审 REJECT 后修复，2026-08-15）
+
+代码质量评审发现 Critical：guardrail 拦截路径不消耗 steps，若 LLM 持续产出被拦截动作则循环永不终止。修复内容：
+
+1. `Agent` 新增 `max_blocked: int = 5` 字段；run() 维护 `blocked` 计数器；拦截达上限返回 `{"exit_status": "guardrail_exhausted", ...}`。三个计数器（steps/format_errors/blocked）各自单调递增且有界，任意模型行为下循环必然终止（评审员给出完整终止性证明）。
+2. 补 3 个 guardrail 分支测试（拦截不执行+继续 / 拦截不计步 / 全拦截终止）。
+3. 新增 `format_observation(result)` 辅助函数，建立 Task 5 ToolResult 格式化契约。
+4. run() 开头重置 `self._trace`；`decision is not None` 防御；submission 转 str。
+
+最终测试：8 个 agent_loop 测试 + 全量 21 passed。
+
+**教训**：PLAN 里"拦截不消耗步数预算"的设计意图是对的（拦截是零成本反馈），但缺了独立上限。设计任何"不消耗主计数器"的路径时，必须同时设计它的专属终止保障。
+
 ---
 
 ## Task 5: 工具系统（7 工具 + 分发器）

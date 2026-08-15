@@ -51,3 +51,20 @@
 **教训**:
 1. worktree 之间共享全局 Python 环境：editable install 会指向最后一次安装的 worktree，切 worktree 跑测试前需重装
 2. 耗尽信号用 IndexError 是"响亮失败"设计——真实 agent loop 有 submit 收尾 + max_steps 兜底，耗尽只意味着测试场景写错
+
+## Task 4 — Agent 主循环（2026-08-15）
+
+- **Worktree**: `../safe-swe-lite-task-04`，分支 `task/04-agent-loop`
+- **Implementer**: executor subagent，完整 Task 4 文本 + TDD
+- **产出**: `agent/loop.py`（Agent dataclass + run() 主循环）、`tests/test_agent_loop.py`（5→8 tests）
+- **验证**: 18→21 passed，ruff 干净
+- **Spec 评审**: ✅ 与 PLAN 逐行一致
+- **质量评审**: ❌ REJECT（1 Critical + 2 Important + 6 Minor）→ 修复 → 复审 ✅ APPROVE
+- **Critical**: 护栏拦截路径不消耗 steps → LLM 持续产出被拦截动作时循环永不终止。修复：`max_blocked=5` 独立计数器 + `guardrail_exhausted` 退出码。评审员给出终止性证明（三计数器单调有界）
+- **Important 修复**: guardrail 分支 3 个测试；`format_observation()` 建立 Task 5 ToolResult 格式化契约
+- **PLAN 修订**: Task 4 后追加实现后修订记录（见 PLAN.md）
+
+**教训**（重要）:
+1. **PLAN 的设计缺陷被评审拦截**：我写 PLAN 时认为"拦截不消耗步数=与 mini-swe-agent 语义一致"，但 mini-swe-agent 实际通过异常路径消耗步骤。设计任何"不消耗主计数器"的路径，必须同时设计专属终止保障
+2. 质量评审的价值在 Task 4 完整体现：spec 合规（逐字一致）≠ 代码正确（有 Critical bug）
+3. 零覆盖的控制流分支（guardrail）就是 bug 的藏身处——评审员原话"该 Critical 缺陷正是因此漏网"
