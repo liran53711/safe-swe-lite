@@ -1907,6 +1907,8 @@ git commit -m "feat: CLI with run/web/auth subcommands"
 `examples/sample_project/src/auth.py`:
 ```python
 def authenticate(username: str, password: str) -> bool:
+    if not username:
+        return True  # BUG: empty username should be rejected
     return username == "admin" and password == "secret123"
 ```
 
@@ -1926,6 +1928,8 @@ def test_invalid_credentials():
 def test_empty_username():
     assert authenticate("", "secret123") is False
 ```
+
+**验证 bug 存在**：`cd examples/sample_project && python -m pytest -q` 应报 `test_empty_username` 失败（1 failed, 2 passed）。
 
 - [ ] **Step 2: 写三个机制演示测试（失败先行）**
 
@@ -2033,7 +2037,7 @@ Expected: FAIL（examples/tasks 文件还不存在）
     {"message": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"src/auth.py\"}}"},
     {"message": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"tests/test_auth.py\"}}"},
     {"message": "{\"action\": \"run_command\", \"parameters\": {\"command\": \"python -m pytest -q\"}}"},
-    {"message": "{\"action\": \"edit_file\", \"parameters\": {\"path\": \"src/auth.py\", \"old_string\": \"return username == \\\"admin\\\" and password == \\\"secret123\\\"\", \"new_string\": \"if not username or not password:\\n    return False\\n    return username == \\\"admin\\\" and password == \\\"secret123\\\"\"}}"},
+    {"message": "{\"action\": \"edit_file\", \"parameters\": {\"path\": \"src/auth.py\", \"old_string\": \"if not username:\\n    return True\", \"new_string\": \"if not username:\\n    return False\"}}"},
     {"message": "{\"action\": \"run_command\", \"parameters\": {\"command\": \"python -m pytest -q\"}}"},
     {"message": "{\"action\": \"submit\", \"parameters\": {\"result\": \"fixed empty-username bug\"}}"}
   ]
