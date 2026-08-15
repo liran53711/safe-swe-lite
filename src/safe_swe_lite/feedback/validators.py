@@ -4,7 +4,6 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-
 MAX_PYTEST_OUTPUT = 2000
 
 EXCLUDED_DIRS = {".venv", "venv", "node_modules", ".git", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
