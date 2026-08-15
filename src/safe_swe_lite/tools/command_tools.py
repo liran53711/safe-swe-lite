@@ -18,6 +18,7 @@ def run_command(workspace, params: dict) -> ToolResult:
             text=True,
             errors="replace",
             timeout=timeout,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         return ToolResult(success=False, exit_code=-1, error=f"timeout after {timeout}s")

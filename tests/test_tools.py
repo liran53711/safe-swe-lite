@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from safe_swe_lite.agent.protocol import Action
 from safe_swe_lite.tools import Dispatcher

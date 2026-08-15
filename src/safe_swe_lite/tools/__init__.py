@@ -31,7 +31,12 @@ def _truncate_result(result: ToolResult) -> ToolResult:
 
 class Dispatcher:
     def __init__(self, workspace):
-        from safe_swe_lite.tools import command_tools, file_tools, search_tools, submit_tool
+        from safe_swe_lite.tools import (
+            command_tools,
+            file_tools,
+            search_tools,
+            submit_tool,
+        )
         self.workspace = workspace
         self._handlers = {
             "read_file": file_tools.read_file,
@@ -49,6 +54,6 @@ class Dispatcher:
             return ToolResult(success=False, error=f"unknown tool '{action.name}'")
         try:
             result = handler(self.workspace, action.parameters)
-        except Exception as e:  # tool errors become observations, never crash the loop
+        except Exception as e:  # noqa: BLE001 - tool errors become observations, never crash the loop
             return ToolResult(success=False, error=f"{type(e).__name__}: {e}")
         return _truncate_result(result)

@@ -15,6 +15,7 @@ def search_pattern(workspace: Path, params: dict) -> ToolResult:
         proc = subprocess.run(
             ["rg", "-n", pattern, str(workspace)],
             capture_output=True, text=True, errors="replace", timeout=SEARCH_TIMEOUT,
+            check=False,
         )
         if proc.returncode == 2:  # rg exit code 2 = invalid regex
             return ToolResult(success=False, error=f"invalid regex pattern: {proc.stderr.strip()}")
@@ -48,6 +49,7 @@ def _regex_fallback(workspace: Path, pattern: str) -> str:
         [sys.executable, "-c", code, str(workspace), pattern],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
         timeout=SEARCH_TIMEOUT,
+        check=False,
     )
     if proc.returncode != 0:
         stderr = proc.stderr.strip()
