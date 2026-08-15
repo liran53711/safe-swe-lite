@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "safe-swe-lite"
+version = "0.1.0"
+description = "A lightweight SWE-agent-inspired coding agent harness with deterministic guardrails and test-feedback self-correction."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.4", "mypy>=1.10"]
+web = ["fastapi>=0.111", "uvicorn>=0.30"]
+llm = ["litellm>=1.40", "python-dotenv>=1.0", "keyring>=25.0"]
+all = ["fastapi>=0.111", "uvicorn>=0.30", "litellm>=1.40", "python-dotenv>=1.0", "keyring>=25.0"]
+
+[project.scripts]
+safe-swe-lite = "safe_swe_lite.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
