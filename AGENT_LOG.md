@@ -172,3 +172,19 @@
 1. **参数契约要读工具实现**：L4 声称覆盖 edit_file，但没人核对过 edit_file 的参数表——`content` vs `new_string` 一字之差，整层失效。护栏层声称覆盖的动作必须逐个对照工具签名
 2. 评审员三问的价值：编辑动作扫什么？大文件怎么办？别名怎么处理？——每个都是"读了工具实现才知道"的问题
 3. 四层各自的文档化边界共同构成护栏的诚实性：L1 四条、L3 软复核层、L4 赋值别名——"知道哪拦不住"比"声称全拦住"更安全
+
+## Task 10 — 反馈闭环（2026-08-16）
+
+- **Worktree**: `../safe-swe-lite-task-10`，分支 `task/10-feedback`
+- **Implementer**: executor subagent × 2 轮（实现 + 修复）
+- **产出**: `feedback/validators.py`（PyCompileValidator + TestValidator + format_for_llm）、`feedback/loop.py`（run_with_retry）、test_feedback.py（5→9 tests）
+- **验证**: 104→108 passed，ruff + mypy 干净
+- **Spec 评审**: ✅ APPROVE（implementer 发现 PLAN 测试与实现片段三处内部矛盾：format_for_llm 头部文案、loc 格式、死 import——按 TDD 以测试为契约）
+- **质量评审**: APPROVE + 4 Important + 4 Minor → 修复 → 复审 ✅ APPROVE
+- **Important 修复**: ① TimeoutExpired 未捕获会击穿未来 Agent.run；② rglob 扫进 .venv/__pycache__ 产生假阳性失败；③ pytest rc 2/3/4/5（无测试/配置错误）被当"测试失败"空耗重试轮——改为 passed=True 语义；④ execute_write 异常（MockLLM 耗尽/网络错误）时返回最后验证结果 + loop 错误标记而非崩溃
+- **核心交付物 0 覆盖教训**：run_with_retry 初始 5 个测试全测 validators，重试循环本体 0 覆盖——评审员指出后补 4 个调用次数精确断言（0/1/3 次）的测试
+
+**教训**:
+1. **测试文件与实现片段必须由同一个人对照写**——PLAN 里两段代码由我分别起草，三处不一致（文案/格式/import）。以后 PLAN 的测试和实现代码块要交叉校验后再发布
+2. **"核心交付物 0 覆盖"是常见的假完成**：模块写了、测试写了，但测试全在测辅助函数。每个 task 收尾问一句"本 task 的核心 API 有直接测试吗"
+3. pytest 退出码语义：rc 1 才是"测试失败"（可反馈），rc 5 是"没有测试"（不可反馈）——把不可修的错误喂给模型重试是浪费轮次
