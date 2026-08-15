@@ -111,3 +111,19 @@
 3. **评审员建议的代码也要验证**：评审第一轮给的 rm 正则实测是死代码（不匹配任何变体），implementer 实证后修正。信任但要验证
 4. **安全方向的误伤可接受**：`echo "rm -rf /"` 纯文本被拦——误伤的成本是 LLM 收到 reason 换个说法，漏拦的成本是数据丢失。不对称的
 5. 遗留 LOW（WebUI 任务前处理）：真实 ToolResult 对象进 trace 需 asdict 才能 JSON 序列化
+
+## Task 7 — 护栏 L2 范围围栏（2026-08-15）
+
+- **Worktree**: `../safe-swe-lite-task-07`，分支 `task/07-scope-fence`
+- **Implementer**: executor subagent × 2 轮（实现 + 修复）
+- **产出**: `guardrails/scope_fence.py`（28 行）、test_guardrails.py 追加 7→9 个 L2 测试（去 1 重复）
+- **验证**: 70→71 passed，ruff 干净
+- **Spec 评审**: ✅ APPROVE（跨盘符测试做了平台适配 skip 守卫；发现 PLAN 笔误"5 passed"实为 7 个测试）
+- **质量评审**: APPROVE + 3 Important + 4 Minor → 修复 → 复审 ✅ APPROVE
+- **Important 修复**: ① `.env.` 尾随点绕过（Windows 文件系统忽略尾随点，实测真读到 .env——Task 6 同类 bug 的变体，`rstrip(" .")` 修复且不用 strip 防误伤 `..env`）；② symlink 逃逸测试补上（resolve 展开后拦截，Windows 真实创建 symlink 实测）；③ 非字符串 path 拦截（isinstance 先于 falsy 判断，`0`/`[]` 也是非字符串）
+- **评审员对抗性实测 31 项**：symlink、UNC 路径、盘符大小写、dotdot、绝对路径、跨盘符、尾随空格——全部拦截正确
+
+**教训**:
+1. **同类 bug 会在兄弟模块复发**：Task 6 修了尾随空格，Task 7 评审发现尾随点变体。修 bug 时要想"这个 bug 类还有哪些变体"，一次修全
+2. **Windows 文件系统语义是隐蔽攻击面**：尾随空格、尾随点、盘符大小写、UNC——护栏必须用 resolve/规范化后的路径判定，且每个平台差异都要有测试
+3. 评审员 31 项实测中代码行为全对、缺口在测试覆盖——安全代码"行为对但没测试"等于"行为没有保障"
