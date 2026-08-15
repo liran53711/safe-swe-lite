@@ -219,3 +219,18 @@
 1. **配置静默失败比报错更危险**："你以为设了 max_turn=100，实际跑 50"——extra="forbid" 是配置系统的默认正确选择
 2. 打包路径算术（parents[N]）在 editable 下蒙蔽人——资源加载必须用 importlib.resources，让 wheel 安装路径天然正确
 3. 与 Task 11 相同的教训：两个 task 并行跑在独立 worktree，全局 editable install 冲突——用 PYTHONPATH=src 跑测试是标准解法
+
+## Task 13 — CLI 接线（2026-08-16）
+
+- **Worktree**: `../safe-swe-lite-task-13`，分支 `task/13-cli`
+- **Implementer**: executor subagent × 2 轮（实现 + 修复）
+- **产出**: `cli.py`（_jsonable + run_task_from_file + main 三子命令）、test_cli.py（3→5 tests）
+- **验证**: 129→131 passed，真实 `safe-swe-lite run` 命令端到端 exit 0
+- **Spec 评审**: ✅ APPROVE（接线契约全闭环：auto_approve=True、双类型序列化、config 透传）
+- **质量评审**: APPROVE + 2 Important + 6 Minor → 修复 → 复审 ✅ APPROVE
+- **Important**: ① mock_outputs 耗尽裸崩溃——**默认配置就能触发**（default.yaml 的 mock_outputs: [] → 首次 query IndexError），且 blocked/format-error 吃 query 不推进 steps 使中途耗尽也是崩溃路径。修复 try/except IndexError → mock_outputs_exhausted 友好 dict（trace 保留）；② 测试的 default=str 架空序列化断言——去掉后 _jsonable 回归必红
+
+**教训**:
+1. **默认配置路径必须亲手跑**：评审员实测"缺 mock_outputs 键 → 回退默认 [] → 崩"——implementer 的 3 个测试都显式给了 mock_outputs，没人测默认路径。测试要覆盖"用户什么都不配"的场景
+2. IndexError 捕获的精度核查：Agent.run 内唯一 IndexError 来源是 MockLLM.query——评审员确认无其他来源后才批准裸 except。**捕获异常前先穷举其来源**
+3. 惰性导入的失败模式要提前设计：web/auth 未落地时用户敲命令会得到什么——parser.error 友好提示 3 行成本，比裸 ModuleNotFoundError 专业得多
