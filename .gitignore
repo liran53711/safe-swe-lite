@@ -22,3 +22,6 @@ Thumbs.db
 # Reference projects (教材，不提交)
 course/mini-swe-agent/
 course/SWE-agent/
+
+# OMC operational state
+.omc/
