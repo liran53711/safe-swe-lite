@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from safe_swe_lite.agent.protocol import Action
 
 LAYER_L1 = 1
+LAYER_L2 = 2
 
 DEFAULT_BLOCKLIST = ["rm -rf /", "sudo", "chmod 777", "git push --force", "curl ", "wget ", "> /dev/sda", "mkfs", "dd if="]
 # 交互式编辑器无论带不带参数都会挂起无 TTY 的 agent 循环，故按首词前缀拦截
@@ -80,8 +81,10 @@ class StaticChecker:
         if action.name == "read_file":
             path = action.parameters.get("path", "")
             # 归一化两种分隔符后取 basename：Windows 下 pathlib 认反斜杠，Linux CI 不认；
-            # 显式替换保证两个平台判定一致。strip 防 Windows 打开文件时自动剥尾随空格
-            name = str(path).strip().replace("\\", "/").rsplit("/", 1)[-1]
+            # 显式替换保证两个平台判定一致。rstrip(" .") 防 Windows 打开文件时自动剥
+            # 尾随空格与点（Windows 文件系统忽略尾随点：read_file(".env.") 实际读到 .env）。
+            # 不用 strip()：会误伤 POSIX 合法的前导点文件名（如 ..env 被剥前导点改变语义）
+            name = str(path).rstrip(" .").replace("\\", "/").rsplit("/", 1)[-1]
             if name.casefold() in _PROTECTED_CASEFOLD:
                 return GuardrailDecision(blocked=True, layer=LAYER_L1, reason=f"reading protected file '{name}'")
             return GuardrailDecision(blocked=False)

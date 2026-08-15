@@ -2,6 +2,7 @@ import pytest
 
 from safe_swe_lite.agent.protocol import Action
 from safe_swe_lite.guardrails.checker import StaticChecker
+from safe_swe_lite.guardrails.scope_fence import ScopeFence
 
 
 @pytest.fixture
@@ -146,3 +147,66 @@ def test_rm_safe_targets_still_allowed(checker):
     assert not checker.check(cmd("rm -rf ./build")).blocked
     assert not checker.check(cmd("rm -rf ~/build")).blocked
     assert not checker.check(cmd("rm -rf /tmp/x")).blocked
+
+
+# ---- L2 范围围栏：所有 file 类动作的路径必须落在 workspace 内 ----
+# 核心机制：(workspace / path).resolve() 展开 ../、./、符号链接后再用 is_relative_to 前缀判定
+
+
+@pytest.fixture
+def fence(tmp_path):
+    return ScopeFence(workspace=tmp_path)
+
+
+def test_fence_allows_inside_workspace(fence, tmp_path):
+    (tmp_path / "ok.py").write_text("x")
+    action = Action(name="read_file", parameters={"path": "ok.py"})
+    assert not fence.check(action).blocked
+
+
+def test_fence_blocks_absolute_path_outside(fence):
+    action = Action(name="read_file", parameters={"path": "/etc/passwd"})
+    decision = fence.check(action)
+    assert decision.blocked and decision.layer == 2
+
+
+def test_fence_blocks_dotdot_escape(fence):
+    action = Action(name="read_file", parameters={"path": "../../etc/passwd"})
+    assert fence.check(action).blocked
+
+
+def test_fence_blocks_write_outside(fence):
+    action = Action(name="write_file", parameters={"path": "../evil.py", "content": "x"})
+    assert fence.check(action).blocked
+
+
+def test_fence_applies_to_search_and_list_too(fence):
+    action = Action(name="search_pattern", parameters={"pattern": "x", "path": "/etc"})
+    assert fence.check(action).blocked
+
+
+def test_fence_blocks_cross_drive_path(fence, tmp_path):
+    # Task 5 评审发现：Path('C:/ws') / 'D:/evil.txt' → 'D:/evil.txt'（跨盘符替换 workspace）
+    if "C:" not in str(tmp_path):
+        pytest.skip("windows-only")
+    other_drive = str(tmp_path).replace("C:", "D:") + "/evil.txt"
+    action = Action(name="read_file", parameters={"path": other_drive})
+    assert fence.check(action).blocked
+
+
+def test_fence_blocks_symlink_escape(fence, tmp_path):
+    outside = tmp_path.parent / "outside_secret"
+    outside.mkdir(exist_ok=True)
+    (outside / "secret.txt").write_text("SECRET=1")
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink not supported on this platform")
+    action = Action(name="read_file", parameters={"path": "link/secret.txt"})
+    assert fence.check(action).blocked
+
+
+def test_fence_blocks_non_string_path(fence):
+    assert fence.check(Action(name="read_file", parameters={"path": 123})).blocked
+    assert fence.check(Action(name="read_file", parameters={"path": None})).blocked
