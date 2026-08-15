@@ -1043,6 +1043,19 @@ def test_fence_blocks_write_outside(fence):
 def test_fence_applies_to_search_and_list_too(fence):
     action = Action(name="search_pattern", parameters={"pattern": "x", "path": "/etc"})
     assert fence.check(action).blocked
+
+
+def test_fence_blocks_absolute_path(fence):
+    # Task 5 评审发现：Path(ws) / "/abs" 会逃逸到盘根（Windows）
+    action = Action(name="read_file", parameters={"path": "/etc/passwd"})
+    assert fence.check(action).blocked
+
+
+def test_fence_blocks_cross_drive_path(fence, tmp_path):
+    # Task 5 评审发现：Path('C:/ws') / 'D:/evil.txt' → 'D:/evil.txt'（跨盘符替换 workspace）
+    other_drive = str(tmp_path).replace("C:", "D:") + "/evil.txt"
+    action = Action(name="read_file", parameters={"path": other_drive})
+    assert fence.check(action).blocked
 ```
 
 - [ ] **Step 2: 跑测试确认失败**

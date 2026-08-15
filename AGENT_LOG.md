@@ -68,3 +68,20 @@
 1. **PLAN 的设计缺陷被评审拦截**：我写 PLAN 时认为"拦截不消耗步数=与 mini-swe-agent 语义一致"，但 mini-swe-agent 实际通过异常路径消耗步骤。设计任何"不消耗主计数器"的路径，必须同时设计专属终止保障
 2. 质量评审的价值在 Task 4 完整体现：spec 合规（逐字一致）≠ 代码正确（有 Critical bug）
 3. 零覆盖的控制流分支（guardrail）就是 bug 的藏身处——评审员原话"该 Critical 缺陷正是因此漏网"
+
+## Task 5 — 工具系统（2026-08-15）
+
+- **Worktree**: `../safe-swe-lite-task-05`，分支 `task/05-tools`
+- **Implementer**: executor subagent，完整 Task 5 文本 + TDD
+- **产出**: `tools/__init__.py`（ToolResult + Dispatcher）、file_tools / command_tools / search_tools / submit_tool、`tests/test_tools.py`（10→14 tests）
+- **验证**: 31→35 passed，ruff 干净，mypy 干净
+- **Spec 评审**: ✅ APPROVE。两个偏差均合理：Windows cmd.exe 不剥单引号导致 `python -c 'exit(3)'` 实际 exit 0（实证后改双引号跨平台写法）；移除未用 ToolResult import
+- **质量评审**: ❌ REJECT（1 Critical + 4 Important）→ 修复 → 复审 ✅ APPROVE
+- **Critical**: search fallback ReDoS——LLM 病态正则 `(a+)+$` 在无超时的 re.search 中指数挂起；且本机 Python 环境 PATH 无 rg（Git Bash 有、Windows PATH 没有），fallback 是实际生效路径。修复：fallback 移入 `sys.executable -c` 子进程 + 10s 超时。实测 200K 字符病态正则 10.0s 整终止
+- **Important 修复**: rg 退出码 2（无效正则）报错而非假 "(no matches)"；Dispatcher 统一 32K 截断；write/edit 加 resolve 与 read 一致；errors="replace" 全覆盖（GBK 输出不炸）
+- **评审附带发现**（供 Task 7 用）：`Path('C:/ws') / 'D:/evil.txt'` → `D:/evil.txt`（跨盘符替换 workspace）；`/abs.txt` → 盘根逃逸。围栏的 resolve + is_relative_to 能拦，但必须加这两个显式测试
+
+**教训**:
+1. **环境双面性**：Bash 工具里 `rg --version` 有输出 ≠ Python subprocess 能找到 rg——Git Bash 的 PATH 和 Windows PATH 是两回事。工具可用性判断要区分 shell 环境
+2. ReDoS 是 LLM 输入类工具的原生威胁：任何执行 LLM 提供字符串的引擎（正则/SQL/shell）都需要超时或长度边界，光靠"LLM 不会写病态正则"是靠不住的
+3. 截断收敛在 Dispatcher 单点是正确架构——新工具自动获得保护
