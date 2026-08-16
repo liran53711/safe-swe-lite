@@ -81,6 +81,55 @@ def run_task_from_file(task_file: Path, use_real: bool = False) -> dict:
     return _jsonable(result)
 
 
+def print_step(action, result, decision) -> None:
+    """Pretty-print one agent step. Guardrail blocks highlighted red."""
+    if decision is not None:
+        # 护栏拦截
+        print(f"  [BLOCKED L{decision.layer}] {action.name}: {decision.reason}")
+    else:
+        status = "ok" if result.success else "FAIL"
+        print(f"  [{status}] {action.name}: {result.output[:120]}")
+
+
+def _default_workspace() -> Path:
+    """Repo-root sample project (src 布局：cli.py 位于 src/safe_swe_lite/）。"""
+    return Path(__file__).resolve().parents[2] / "examples" / "sample_project"
+
+
+def chat_command(workspace: Path, use_mock: bool = False) -> None:
+    """Interactive chat: type tasks, watch the agent work live.
+
+    默认真实 LLM（LiteLLMProvider）。--mock 仅供测试：MockLLM 脚本为空，
+    第一次 query 即耗尽，给出友好提示后继续等待下一条输入。
+    """
+    from safe_swe_lite.llm.litellm_provider import LiteLLMProvider
+
+    if use_mock:
+        model = MockLLM(outputs=[])
+        print("mock mode: MockLLM has no scripted outputs; each task exhausts on the first query", file=sys.stderr)
+    else:
+        model = LiteLLMProvider()
+    tools = Dispatcher(workspace=workspace)
+    # CLI 无交互批准通道：auto_approve=True（与 run 子命令同一决策，见 run_task_from_file docstring）
+    chain = GuardrailChain(workspace=workspace, auto_approve=True)
+    while True:
+        try:
+            task = input("> ")
+        except (EOFError, KeyboardInterrupt):
+            break
+        if task.strip() in ("exit", "quit", "q"):
+            break
+        if not task.strip():
+            continue
+        agent = Agent(model=model, tools=tools, guardrail=chain, max_steps=30)
+        try:
+            result = agent.run(task, on_step=print_step)
+        except IndexError:
+            print("[mock] MockLLM outputs exhausted: no scripted responses left; restart without --mock for real LLM chat")
+            continue
+        print(f"[done] {result.get('exit_status')} {result.get('submission', '')}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="safe-swe-lite")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -94,6 +143,10 @@ def main() -> None:
     sub.add_parser("web", help="start the web UI")
 
     sub.add_parser("auth", help="configure API key (real LLM mode)")
+
+    chat_p = sub.add_parser("chat", help="interactive task input (real LLM)")
+    chat_p.add_argument("--workspace", type=Path, default=None, help="workspace directory (default: sample project)")
+    chat_p.add_argument("--mock", action="store_true", help="use MockLLM (empty script, for testing)")
 
     args = parser.parse_args()
     if args.command == "run":
@@ -111,6 +164,9 @@ def main() -> None:
         except ImportError:
             parser.error('auth requires the llm extras; install the llm extras: pip install -e ".[llm]"')
         auth_command()
+    elif args.command == "chat":
+        workspace = args.workspace if args.workspace is not None else _default_workspace()
+        chat_command(workspace, use_mock=args.mock)
 
 
 if __name__ == "__main__":

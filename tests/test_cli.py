@@ -69,3 +69,48 @@ def test_missing_task_key_raises(tmp_path):
         assert False, "should raise"
     except ValueError as e:
         assert "task" in str(e)
+
+
+def test_agent_on_step_callback_receives_steps(tmp_path):
+    from safe_swe_lite.agent.loop import Agent
+    from safe_swe_lite.llm.mock import MockLLM
+    from safe_swe_lite.tools import Dispatcher
+
+    steps = []
+    model = MockLLM(outputs=[
+        {"message": '{"action": "list_files", "parameters": {}}'},
+        {"message": '{"action": "submit", "parameters": {"result": "done"}}'},
+    ])
+    agent = Agent(model=model, tools=Dispatcher(workspace=tmp_path), max_steps=5)
+    result = agent.run("task", on_step=lambda action, result, decision: steps.append((action.name, decision)))
+    assert result["exit_status"] == "submitted"
+    assert [s[0] for s in steps] == ["list_files"]  # submit 不触发 on_step（循环在 submit 分支直接返回）
+    assert steps[0][1] is None  # 无护栏拦截时 decision 为 None
+
+
+def test_agent_on_step_callback_receives_guardrail_block(tmp_path):
+    from safe_swe_lite.agent.loop import Agent
+    from safe_swe_lite.guardrails import GuardrailChain
+    from safe_swe_lite.llm.mock import MockLLM
+    from safe_swe_lite.tools import Dispatcher
+
+    steps = []
+    model = MockLLM(outputs=[
+        {"message": '{"action": "run_command", "parameters": {"command": "rm -rf /"}}'},
+        {"message": '{"action": "submit", "parameters": {"result": "gave up"}}'},
+    ])
+    chain = GuardrailChain(workspace=tmp_path)
+    agent = Agent(model=model, tools=Dispatcher(workspace=tmp_path), guardrail=chain, max_steps=5)
+    agent.run("task", on_step=lambda a, r, d: steps.append(d))
+    assert any(d is not None and d.blocked for d in steps)  # 拦截被回调到
+
+
+def test_chat_command_exits_on_quit(monkeypatch, tmp_path, capsys):
+    from safe_swe_lite.cli import chat_command
+
+    inputs = iter(["exit"])
+    monkeypatch.setattr("builtins.input", lambda *a: next(inputs))
+    chat_command(workspace=tmp_path, use_mock=True)
+    captured = capsys.readouterr()
+    # 正常退出无异常即通过；mock 模式横幅走 stderr（与 run 子命令同一决策）
+    assert "mock" in captured.err.lower()

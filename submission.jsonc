@@ -8,8 +8,8 @@
   // 仓库托管链接
   "repo_url": "https://github.com/liran53711/safe-swe-lite",
   // 是否部署
-  "is_deployed": false,
+  "is_deployed": true,
   // 部署或发布链接，上一项如果是 false 此处就是 release 链接，否则就是 deploy 链接
-  "deploy_release_url": "https://github.com/liran53711/safe-swe-lite/releases/tag/v0.1.0"
+  "deploy_release_url": "https://safe-swe-lite-production.up.railway.app"
 }
 

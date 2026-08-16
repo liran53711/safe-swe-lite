@@ -1,5 +1,6 @@
 """Agent main loop: organize context -> query LLM -> parse -> guard -> execute -> record."""
 
+from contextlib import suppress
 from dataclasses import dataclass, field
 
 from safe_swe_lite.agent.protocol import ProtocolError, parse_action
@@ -31,7 +32,22 @@ class Agent:
     _messages: list = field(default_factory=list)
     _trace: list = field(default_factory=list)
 
-    def run(self, task: str) -> dict:
+    def run(self, task: str, on_step=None) -> dict:
+        """Run the agent loop.
+
+        on_step(action, result, decision) — 每步执行后回调（可选）：
+        工具执行后带 result（decision 为 None），guardrail 拦截时带
+        decision（result 为 None）。回调内异常被吞掉，打印逻辑错误
+        不应杀死 agent 循环。
+        """
+
+        def notify(action, result=None, decision=None):
+            if on_step is None:
+                return
+            # 打印逻辑错误不应杀死 agent 循环：异常被吞掉
+            with suppress(Exception):
+                on_step(action, result, decision)
+
         self._messages = [
             {"role": "system", "content": "You are a coding agent. Respond ONLY with JSON actions."},
             {"role": "user", "content": task},
@@ -74,9 +90,11 @@ class Agent:
                     })
                     trace_data = decision.model_dump(mode="json") if hasattr(decision, "model_dump") else decision
                     self._trace.append({"kind": "guardrail", "data": trace_data})
+                    notify(action, None, decision)
                     continue
             result = self.tools.execute(action)
             self._messages.append({"role": "user", "content": f"Observation: {format_observation(result)}"})
             self._trace.append({"kind": "observation", "data": result})
+            notify(action, result, None)
             steps += 1
         return {"exit_status": "max_steps_exceeded", "trace": self._trace}

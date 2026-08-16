@@ -14,6 +14,9 @@ def test_mask_key_hides_secret():
 
 
 def test_resolve_api_key_env_var(monkeypatch):
+    # 隔离 keyring：开发机可能存有真实 key（keyring 优先级高于 env）
+    import safe_swe_lite.llm.litellm_provider as lp
+    monkeypatch.setattr(lp.keyring, "get_password", lambda *a, **k: None)
     monkeypatch.setenv("SAFE_SWE_LITE_API_KEY", "sk-test")
     assert resolve_api_key() == "sk-test"
 

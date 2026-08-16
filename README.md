@@ -126,7 +126,9 @@ tests/              # 148 tests
 
 ## 在线部署
 
-Render：`https://safe-swe-lite.onrender.com`（部署说明见下方）
+Railway：`https://safe-swe-lite-production.up.railway.app`
+
+部署架构：GitHub push main → Railway 自动构建 Dockerfile → 分配公开域名。线上环境强制 mock-only（`SAFE_SWE_LITE_ALLOW_REAL_LLM=false`），无 API key、无付费调用、结果确定可重复。免费实例空闲后冷启动需数十秒，属正常现象。
 
 ## CI/CD
 
