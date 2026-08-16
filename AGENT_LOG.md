@@ -302,3 +302,20 @@
 1. **"降级路径"必须用异常触发场景实测**：docstring 承诺"keyring 优先 env 兜底"，但 get_password 在无后端时抛异常——没有异常处理，"兜底"是纸面的。降级逻辑的验收标准是"主路径故障时行为正确"
 2. **真实 LLM 的输出形态要在 provider 层就想清楚**：mock 脚本永远输出干净 JSON，真实 LLM 输出 markdown 围栏/None/解释文本——协议层必须对这些形态健壮，否则真实模式的格式错误重试率接近 100%
 3. 评审员做了一次意外真实调用（stub 失误打到 deepseek 401）——零费用但成为 litellm 掩码行为的直接证据。**意外产物也可以转化为证据**
+
+## 增强 — CLI 交互模式（chat）+ 真实 LLM 解析容错（2026-08-16，提交后实战）
+
+- **触发**：用户以助教视角实测后指出两个定位缺口：① WebUI 只是预录 demo 重放，harness 应是"助教自己输入任务、看 agent 真干活"的交互工具；② 真实 DeepSeek 模式下 agent 无法正常工作
+- **改动 1 — chat 子命令**：`safe-swe-lite chat` 交互式任务输入。`Agent.run(task, on_step=...)` 加向后兼容回调（回调异常被吞，打印错误不杀死循环）；每步实时打印 `[ok]/[FAIL]/[BLOCKED L{n}]`
+- **改动 2 — system prompt 修复**：loop 注入的提示词原只有一句"Respond ONLY with JSON actions"，无动作清单无格式示例——Task 17 评审标记的 LOW 被真实 LLM 打爆（format_error 100%）。补全 7 动作清单 + JSON 格式 + 分步思考指导
+- **改动 3 — 解析容错三层**（真实 LLM 输出形态实测驱动）：
+  - 第一层：markdown 围栏剥离（Task 17 已有）
+  - 第二层：**prose 前缀容错**——DeepSeek 实测输出 "I'll help you... \n{json}"，解释文字在 JSON 前
+  - 第三层：**代码块括号跳过**——DeepSeek 回复里嵌入 ```c int main() {...}``` 代码块，平衡括号扫描器逐个候选尝试，跳过非 action JSON 的括号块
+- **实测成果**：DeepSeek 驱动 agent 完成 list_files → write_file(subtract.c) → read_file 验证 → submit 全流程；真实触发一次护栏拦截（[BLOCKED L1] command must be a string——DeepSeek 发了非字符串 command 参数）
+- **验证**：154 passed + ruff 干净；新增 3 个解析容错测试（prose 前缀、尾随文字、代码块括号跳过）
+
+**教训**:
+1. **"助教视角"是最有价值的验收**：用户扮演助教后立刻暴露"预录 demo ≠ 交互工具"的定位差距。提交前应该做一次"陌生人从零使用"的自测，而不仅是冷启动验证 SPEC
+2. **mock 测试永远测不出真实 LLM 的输出形态**：Task 17 就加了围栏剥离，但 prose 前缀、代码块括号是这次真跑才发现的。真实 LLM 的容错层只能靠真实调用迭代出来——在能低成本调用 DeepSeek 之后，chat 模式的开发效率完全不同
+3. 护栏在真实模式下兑现了设计意图：DeepSeek 的畸形参数被 L1 拦住，agent 继续工作——这是 main contribution 在真实场景的第一个实证
