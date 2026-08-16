@@ -270,3 +270,19 @@
 3. namespace package 是 Python 打包的暗坑：import 成功 ≠ __file__ 存在。用 getattr 防护
 4. 模块级重对象实例化（create_app）会把"路径检查"提前到 import 时——惰性构造让错误在可控点暴露
 5. **PowerShell 5.1 的 Invoke-WebRequest 对 keep-alive 服务会挂起**：implementer 第一次冒烟用 IWR 卡死，误判为服务端问题；Windows 冒烟一律用 curl，不用 PS 5.1 的 IWR
+
+## Task 16 — Docker 分发（2026-08-16）
+
+- **Worktree**: `../safe-swe-lite-task-16`，分支 `task/16-docker`
+- **Implementer**: executor subagent（单轮）+ 我直接修 2 处
+- **产出**: Dockerfile（python:3.11-slim + 非 editable install + ENTRYPOINT/CMD）、.dockerignore（14 模式）、CI docker-build job（含运行态 smoke）
+- **验证**: 140 passed 无回归；本机无 Docker，真实构建由 CI docker-build job 验证（PLAN 记录在案的策略）
+- **Spec 评审**: ✅ APPROVE（implementer 正确适配两处过期 PLAN 文本：README/config 的 COPY 行——照抄会导致构建失败）
+- **质量评审**: APPROVE + 1 Important + 3 Minor → 修复 ✅
+- **Important**: CI 只有"能 build"没有"能跑"——补 docker run + curl health 循环 + docker stop 的 smoke 测试，把构建验证升级为运行验证
+- **Render 部署推演**（评审员完整推演）: 默认命令沿用 ENTRYPOINT+CMD（面板留空即可）、/api/health 兼容健康检查、512MB 免费实例绰绰有余（进程 ~120MB）、PORT 注入正确、冷启动 1-2s
+
+**教训**:
+1. **"能构建"不等于"能跑"**：CI 的 docker-build 原本只验证镜像能 build，console script 接线、package-data 进镜像、端口监听这些故障只有 Render 部署时才暴露。CI 里加 30 秒的 smoke（起容器 + curl）把部署链验证前置
+2. 容器不可变 → editable install 无意义：pip install -e 会把 egg-info 写进镜像 + import 走 finder 间接层。容器里永远用非 editable
+3. 无 Docker 环境的开发策略：静态审查 + wheel 构建模拟 + CI 作为真实验证通道——但要明说这个限制，别假装本地验过
