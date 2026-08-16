@@ -1,0 +1,4 @@
+body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+button { margin-right: 0.5rem; padding: 0.5rem 1rem; cursor: pointer; }
+#trace { background: #111; color: #0f0; padding: 1rem; min-height: 300px; overflow: auto; white-space: pre-wrap; }
+#download { display: inline-block; margin-top: 1rem; }

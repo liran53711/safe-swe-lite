@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.4", "mypy>=1.10"]
+dev = ["pytest>=8.0", "ruff>=0.4", "mypy>=1.10", "httpx>=0.27"]  # httpx: fastapi TestClient 依赖
 web = ["fastapi>=0.111", "uvicorn>=0.30"]
 llm = ["litellm>=1.40", "python-dotenv>=1.0", "keyring>=25.0"]
 all = ["fastapi>=0.111", "uvicorn>=0.30", "litellm>=1.40", "python-dotenv>=1.0", "keyring>=25.0"]
@@ -21,11 +21,28 @@ all = ["fastapi>=0.111", "uvicorn>=0.30", "litellm>=1.40", "python-dotenv>=1.0",
 [project.scripts]
 safe-swe-lite = "safe_swe_lite.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+# 显式 packages 列表（不用 packages.find）：examples/ 在仓库根（src 之外），
+# 必须显式声明才能进 wheel；安装后 import examples 定位 examples 数据目录
+[tool.setuptools]
+packages = [
+    "safe_swe_lite",
+    "safe_swe_lite.agent",
+    "safe_swe_lite.config",
+    "safe_swe_lite.feedback",
+    "safe_swe_lite.guardrails",
+    "safe_swe_lite.llm",
+    "safe_swe_lite.memory",
+    "safe_swe_lite.tools",
+    "safe_swe_lite.web",
+    "examples",
+]
+
+[tool.setuptools.package-dir]
+"safe_swe_lite" = "src/safe_swe_lite"
 
 [tool.setuptools.package-data]
-safe_swe_lite = ["config/*.yaml"]
+safe_swe_lite = ["config/*.yaml", "web/static/*"]
+examples = ["tasks/*.json", "sample_project/src/*.py", "sample_project/tests/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -262,9 +262,11 @@
 - **Critical**: **Task 12 教训的回归**——wheel 打包后 import 崩溃：static 没进 wheel、REPO_ROOT 的 parents[3] 硬编码、模块级 create_app() 在 static 缺失时 import 即抛。修复：显式 packages + package-data 全量打包、_repo_root() 三布局可移植（env > examples 包 > parents[3]）、删模块级实例。**部署必死的问题被评审员用真实 wheel 实证**
 - **HIGH（复审）**: _repo_root() 在 namespace package 场景崩溃——cwd 有裸 examples/ 目录（无 __init__.py）时 `examples.__file__` 是 None，Path(None) 抛 TypeError，服务器无法启动。用户机器上正好有这种兄弟目录（task-14 的 checkout）。一行 getattr 防护修复。**且 implementer 之前的 PORT 验证是假阳性——残留进程在端口上回应**
 - **Important 同步修复**: demo 异常路径（mock_outputs_exhausted 友好 JSON + 前端 !response.ok 分支）、PORT 环境变量、TemporaryDirectory 清理（10 次零残留）、sample 哈希测试（两次 demo 后 tracked 文件不变）
+- **PLAN 偏差**: pyproject dev extras 追加 `httpx>=0.27`——TestClient 运行时依赖，缺失则全新环境测试收集报错
 
 **教训**:
 1. **打包问题是跨任务复发模式**：Task 12 的 config 修过、Task 15 的 static/examples 重演。任何"源树里能跑"的资源定位/打包声明都要过 wheel 冒烟——评审员的验收方式（pip wheel → 解包 → 模拟 site-packages → import）应该成为每个涉及资源任务的标准验证
 2. **验证结果要防假阳性**：implementer 的 PORT=9876 验证被残留 uvicorn 进程污染（旧进程在端口上回应）。验证前先确认端口上没有旧进程
 3. namespace package 是 Python 打包的暗坑：import 成功 ≠ __file__ 存在。用 getattr 防护
 4. 模块级重对象实例化（create_app）会把"路径检查"提前到 import 时——惰性构造让错误在可控点暴露
+5. **PowerShell 5.1 的 Invoke-WebRequest 对 keep-alive 服务会挂起**：implementer 第一次冒烟用 IWR 卡死，误判为服务端问题；Windows 冒烟一律用 curl，不用 PS 5.1 的 IWR
