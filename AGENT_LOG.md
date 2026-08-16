@@ -286,3 +286,19 @@
 1. **"能构建"不等于"能跑"**：CI 的 docker-build 原本只验证镜像能 build，console script 接线、package-data 进镜像、端口监听这些故障只有 Render 部署时才暴露。CI 里加 30 秒的 smoke（起容器 + curl）把部署链验证前置
 2. 容器不可变 → editable install 无意义：pip install -e 会把 egg-info 写进镜像 + import 走 finder 间接层。容器里永远用非 editable
 3. 无 Docker 环境的开发策略：静态审查 + wheel 构建模拟 + CI 作为真实验证通道——但要明说这个限制，别假装本地验过
+
+## Task 17 — 真实 LLM Provider + 凭据安全（2026-08-16）
+
+- **Worktree**: `../safe-swe-lite-task-17`，分支 `task/17-real-llm`
+- **Implementer**: executor subagent × 2 轮（实现 + 修复）
+- **产出**: `llm/litellm_provider.py`（keyring 凭据 + LiteLLMProvider）、`.env.example`、CLI --real 标志、test_credentials.py（4→6 tests）、test_protocol.py（8→10 tests）
+- **验证**: 144→148 passed，ruff 干净
+- **Spec 评审**: ✅ APPROVE（implementer 发现 PLAN 测试/实现矛盾：mask 格式首 6 尾 4 vs 测试隐含首 7）
+- **质量评审**: ❌ REJECT（软，6 Important 全 HIGH 实测）→ 修复 → 复审 ✅ APPROVE
+- **Important 修复**: ① keyring 在 headless Linux/Render 容器无 Secret Service daemon 时抛异常而非降级 env（目标平台必现）；② LLM 空 content → TypeError 逃逸循环；③ markdown 围栏 JSON（真实 LLM 最常见输出形态）烧光 3 次重试无法自愈——parse_action 加围栏剥离；④ .env 加载依赖 litellm import 副作用（显式 load_dotenv）；⑤ --real 横幅污染 stdout 破坏管道；⑥ CI 缺 llm extras 必挂
+- **复审亮点**: 评审员所有 fence 边界实测（6 个变体）——所有失败路径都是显式 ProtocolError，无静默误解析
+
+**教训**:
+1. **"降级路径"必须用异常触发场景实测**：docstring 承诺"keyring 优先 env 兜底"，但 get_password 在无后端时抛异常——没有异常处理，"兜底"是纸面的。降级逻辑的验收标准是"主路径故障时行为正确"
+2. **真实 LLM 的输出形态要在 provider 层就想清楚**：mock 脚本永远输出干净 JSON，真实 LLM 输出 markdown 围栏/None/解释文本——协议层必须对这些形态健壮，否则真实模式的格式错误重试率接近 100%
+3. 评审员做了一次意外真实调用（stub 失误打到 deepseek 401）——零费用但成为 litellm 掩码行为的直接证据。**意外产物也可以转化为证据**
