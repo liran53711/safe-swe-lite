@@ -25,16 +25,74 @@ A lightweight coding agent harness inspired by [SWE-agent](https://github.com/pr
 ```bash
 git clone https://github.com/liran53711/safe-swe-lite
 cd safe-swe-lite
-pip install -e ".[dev,web]"     # 开发 + WebUI
-# 真实 LLM 模式额外需要：
-pip install -e ".[llm]"
+pip install -e ".[dev,web,llm]"   # 一次装全：开发工具 + WebUI + 真实 LLM 支持
 ```
 
 Requirements: Python 3.11+.
 
+## 配置真实 LLM（交互模式的前提）
+
+交互模式（`chat`）需要一个真实 LLM 的 API key。三步：
+
+**1. 存入 API key**（隐藏输入，存入操作系统钥匙串，不进 Git）：
+
+```bash
+safe-swe-lite auth
+# 粘贴你的 key 后回车（粘贴内容不显示，正常）
+```
+
+**2. 设置模型**（默认是 Claude，用其他供应商必须显式设置）：
+
+```bash
+# DeepSeek（国内直连，无需代理）
+export SAFE_SWE_LITE_MODEL=deepseek/deepseek-chat
+
+# OpenAI / Anthropic（需要代理时）
+export SAFE_SWE_LITE_MODEL=anthropic/claude-sonnet-4-5
+export HTTPS_PROXY=http://127.0.0.1:7897
+```
+
+`export` 只在当前终端生效。想永久生效（Git Bash）：
+
+```bash
+echo 'export SAFE_SWE_LITE_MODEL=deepseek/deepseek-chat' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**3. 验证 key 是否被找到**（不会显示明文，只确认状态）：
+
+```bash
+python -c "from safe_swe_lite.llm.litellm_provider import get_api_key; print('key configured')"
+```
+
+key 的读取优先级：钥匙串 → `SAFE_SWE_LITE_API_KEY` → `OPENAI_API_KEY` → `ANTHROPIC_API_KEY`。清除 key：Windows 凭据管理器 → Windows 凭据 → 删除 `safe-swe-lite` 条目。
+
 ## Running
 
-### CLI（mock 模式，零依赖）
+### 交互模式（chat）——真实 LLM 驱动
+
+```bash
+safe-swe-lite chat
+```
+
+出现 `>` 提示符后，输入任务（中英文均可），agent 实时执行每一步并打印：
+
+```
+> 修复失败的测试
+  [ok] list_files: d src
+  [FAIL] run_command: 1 failed, 2 passed
+  [ok] edit_file: edited src/auth.py
+  [ok] run_command: 3 passed
+[done] submitted fixed empty-username bug
+```
+
+- **默认工作区**：`examples/sample_project/`（仓库内自带的小项目，含一个故意留下的 bug）。agent 只在这个目录内读写文件（L2 范围围栏强制）
+- **指定其他工作区**：`safe-swe-lite chat --workspace /path/to/your/project`
+- **退出**：输入 `exit` / `quit` / `q`，或按 Ctrl+C
+- 护栏全程生效：危险命令被拦截时显示 `[BLOCKED L{n}]` 及原因
+- 每次任务是独立会话（不记住上一轮对话）；任务会**真实修改**工作区文件
+
+### CLI 任务文件（mock 模式，零依赖、零 API 调用）
 
 ```bash
 # 修复 bug 演示：真实 pytest 失败 → 编辑 → 转绿 → submit
@@ -43,7 +101,7 @@ safe-swe-lite run examples/tasks/fix_bug.json
 # 危险动作拦截演示
 safe-swe-lite run examples/tasks/blocked_dangerous_action.json
 
-# 真实 LLM 模式（需先配置 key）
+# 用真实 LLM 跑任务文件（需先完成上面的 key 配置）
 safe-swe-lite run examples/tasks/fix_bug.json --real
 ```
 
