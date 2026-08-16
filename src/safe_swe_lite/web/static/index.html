@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>SafeSWE-Lite</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>SafeSWE-Lite</h1>
+    <p class="subtitle">A lightweight coding agent harness with deterministic guardrails</p>
+    <div class="buttons">
+      <button id="fix-bug">Run: Fix Bug Demo</button>
+      <button id="blocked">Run: Blocked Action Demo</button>
+    </div>
+    <pre id="trace">// Click a button to run a mock demo. All steps are deterministic — no network, no API key.</pre>
+    <a id="download" download="trace.json">Download trace JSON</a>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
