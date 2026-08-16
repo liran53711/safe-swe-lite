@@ -250,3 +250,17 @@
 2. **终止状态是演示的叙事**：mock_outputs_exhausted（脚本没写完）和 guardrail_exhausted（护栏赢了）是两个完全不同的故事——评审员一句话点破"读起来像配置错误，不像危险动作被拦截"
 3. **信任边界要写明**：mock 脚本编排动作序列（信任），但工具结果是真实的（pytest 真跑、edit 真改）——这个边界写进 docstring 后，演示的可信度反而更高
 4. 评审员 100 次重复运行验证确定性——课程要求"可重复运行且结果确定"，这是验收方式
+
+## Task 15 — WebUI（2026-08-16，课程 §A.7）
+
+- **Worktree**: `../safe-swe-lite-task-15`，分支 `task/15-webui`
+- **Implementer**: executor subagent（单轮，TDD 全流程）
+- **产出**: `web/__init__.py`、`web/app.py`（FastAPI mock-only demo 端点 + 静态 UI）、`web/static/index.html`、`style.css`、`app.js`、tests/test_web_app.py（4 tests）
+- **验证**: 135→139 passed；ruff check 干净；uvicorn 真实冒烟（health/index/fix-bug/blocked 全 200，fix-bug → submitted、blocked → guardrail_exhausted）
+- **PLAN 偏差**: pyproject.toml dev extras 追加 `httpx>=0.27`——fastapi TestClient 运行时依赖，缺失会导致全新环境收集阶段直接报错（Plan 未列入文件清单，最小必要偏差）
+- **workspace 契约执行**: `_run_task` 每次 demo 在 `tempfile.mkdtemp` 副本上运行，tracked sample project 的 auth.py 全程保持 bug 状态（实测确认）
+
+**教训**:
+1. **"在线检查"环境的第一脆弱点是测试基础设施本身**：TestClient 需要 httpx，而 web extras 没带——老师在全新环境跑 `pip install -e ".[dev,web]"` + pytest 会先撞上它。测试依赖要进 extras，不能只装在本机
+2. **PowerShell 5.1 的 Invoke-WebRequest 对 keep-alive 服务会挂起**：第一次冒烟脚本用 IWR 卡死、curl 也超时，误判为服务端问题；换 curl.exe 后服务端一切正常。Windows 冒烟一律用 curl，不用 PS 5.1 的 IWR
+3. **临时目录泄漏可接受但要说清**：`_run_task` 的 mkdtemp 不清理，每次 demo 泄漏一个几 KB 的副本目录——课程 demo 低频调用可接受，已在报告中说明
