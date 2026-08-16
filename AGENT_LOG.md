@@ -250,3 +250,21 @@
 2. **终止状态是演示的叙事**：mock_outputs_exhausted（脚本没写完）和 guardrail_exhausted（护栏赢了）是两个完全不同的故事——评审员一句话点破"读起来像配置错误，不像危险动作被拦截"
 3. **信任边界要写明**：mock 脚本编排动作序列（信任），但工具结果是真实的（pytest 真跑、edit 真改）——这个边界写进 docstring 后，演示的可信度反而更高
 4. 评审员 100 次重复运行验证确定性——课程要求"可重复运行且结果确定"，这是验收方式
+
+## Task 15 — WebUI（2026-08-16）
+
+- **Worktree**: `../safe-swe-lite-task-15`，分支 `task/15-webui`
+- **Implementer**: executor subagent × 2 轮（实现 + 打包修复）+ 我直接修 1 处 HIGH
+- **产出**: `web/app.py`（FastAPI 4 端点 + 临时副本 demo）、static 三件套、test_web_app.py（4→5 tests）、pyproject 显式 packages + package-data、examples/__init__.py
+- **验证**: 139→140 passed；wheel 冒烟（构建→解包→模拟 site-packages→全端点 200）
+- **Spec 评审**: ✅ APPROVE（implementer 把 workspace 契约实现得比 PLAN 片段更正确）
+- **质量评审**: ❌ REJECT（1 Critical）→ 修复 → 复审 REQUEST CHANGES（1 HIGH）→ 修复 ✅
+- **Critical**: **Task 12 教训的回归**——wheel 打包后 import 崩溃：static 没进 wheel、REPO_ROOT 的 parents[3] 硬编码、模块级 create_app() 在 static 缺失时 import 即抛。修复：显式 packages + package-data 全量打包、_repo_root() 三布局可移植（env > examples 包 > parents[3]）、删模块级实例。**部署必死的问题被评审员用真实 wheel 实证**
+- **HIGH（复审）**: _repo_root() 在 namespace package 场景崩溃——cwd 有裸 examples/ 目录（无 __init__.py）时 `examples.__file__` 是 None，Path(None) 抛 TypeError，服务器无法启动。用户机器上正好有这种兄弟目录（task-14 的 checkout）。一行 getattr 防护修复。**且 implementer 之前的 PORT 验证是假阳性——残留进程在端口上回应**
+- **Important 同步修复**: demo 异常路径（mock_outputs_exhausted 友好 JSON + 前端 !response.ok 分支）、PORT 环境变量、TemporaryDirectory 清理（10 次零残留）、sample 哈希测试（两次 demo 后 tracked 文件不变）
+
+**教训**:
+1. **打包问题是跨任务复发模式**：Task 12 的 config 修过、Task 15 的 static/examples 重演。任何"源树里能跑"的资源定位/打包声明都要过 wheel 冒烟——评审员的验收方式（pip wheel → 解包 → 模拟 site-packages → import）应该成为每个涉及资源任务的标准验证
+2. **验证结果要防假阳性**：implementer 的 PORT=9876 验证被残留 uvicorn 进程污染（旧进程在端口上回应）。验证前先确认端口上没有旧进程
+3. namespace package 是 Python 打包的暗坑：import 成功 ≠ __file__ 存在。用 getattr 防护
+4. 模块级重对象实例化（create_app）会把"路径检查"提前到 import 时——惰性构造让错误在可控点暴露
