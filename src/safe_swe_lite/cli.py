@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import sys
 from dataclasses import asdict
 from pathlib import Path
 
@@ -27,7 +28,14 @@ def _jsonable(obj):
     return obj
 
 
-def run_task_from_file(task_file: Path) -> dict:
+def run_task_from_file(task_file: Path, use_real: bool = False) -> dict:
+    """Run a task file and return the JSON-serializable result dict.
+
+    use_real=True 时使用 LiteLLMProvider（真实 LLM）。
+    设计决策：真实模式下 guardrail 的 auto_approve 保持 True——CLI 没有交互批准
+    通道（人工批准属于 WebUI/终端），因此打印提示
+    "real LLM mode: HITL auto-approve enabled for CLI"，真正的 HITL 批准留给未来。
+    """
     path = Path(task_file)
     if not path.exists():
         raise FileNotFoundError(f"task file not found: {path}")
@@ -41,9 +49,15 @@ def run_task_from_file(task_file: Path) -> dict:
         raise ValueError("task file missing required key 'task'")
     config = load_config()
     workspace = Path(task_data.get("workspace", config.workspace))
-    model = MockLLM(outputs=task_data.get("mock_outputs", config.model.mock_outputs))
+    if use_real:
+        from safe_swe_lite.llm.litellm_provider import LiteLLMProvider
+
+        model = LiteLLMProvider()
+        print("real LLM mode: HITL auto-approve enabled for CLI", file=sys.stderr)
+    else:
+        model = MockLLM(outputs=task_data.get("mock_outputs", config.model.mock_outputs))
     tools = Dispatcher(workspace=workspace)
-    # mock 模式：auto_approve=True 避免 HITL 阻塞（接线契约）
+    # CLI 无交互批准通道：auto_approve=True 避免 HITL 阻塞（接线契约，真实模式决策见 docstring）
     chain = GuardrailChain(
         workspace=workspace,
         require_approval=config.guardrails.require_approval or None,
@@ -71,8 +85,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="safe-swe-lite")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    run_p = sub.add_parser("run", help="run a task file with mock LLM")
+    run_p = sub.add_parser(
+        "run", help="run a task file (mock LLM by default, --real for a live model)"
+    )
     run_p.add_argument("task_file", type=Path)
+    run_p.add_argument("--real", action="store_true", help="use a real LLM instead of MockLLM")
 
     sub.add_parser("web", help="start the web UI")
 
@@ -80,7 +97,7 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.command == "run":
-        result = run_task_from_file(args.task_file)
+        result = run_task_from_file(args.task_file, use_real=args.real)
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.command == "web":
         try:
@@ -92,7 +109,7 @@ def main() -> None:
         try:
             from safe_swe_lite.llm.litellm_provider import auth_command
         except ImportError:
-            parser.error("auth is not available yet (lands in a later task)")
+            parser.error('auth requires the llm extras; install the llm extras: pip install -e ".[llm]"')
         auth_command()
 
 

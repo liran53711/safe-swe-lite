@@ -55,3 +55,14 @@ def test_all_seven_tool_names_accepted():
     for name in VALID_NAMES:
         response = {"message": f'{{"action": "{name}", "parameters": {{}}}}'}
         assert parse_action(response).name == name
+
+
+def test_parse_strips_markdown_fence():
+    response = {"message": '```json\n{"action": "submit", "parameters": {}}\n```'}
+    action = parse_action(response)
+    assert action.name == "submit"
+
+
+def test_parse_none_message_raises_protocol_error():
+    with pytest.raises(ProtocolError):
+        parse_action({"message": None})
