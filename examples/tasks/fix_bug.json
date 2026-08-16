@@ -1,0 +1,13 @@
+{
+  "task": "Fix the failing test in the sample project. Read the source and tests, find the bug, edit the code, run pytest, and submit when all tests pass.",
+  "max_steps": 15,
+  "mock_outputs": [
+    {"message": "{\"action\": \"list_files\", \"parameters\": {}}"},
+    {"message": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"src/auth.py\"}}"},
+    {"message": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"tests/test_auth.py\"}}"},
+    {"message": "{\"action\": \"run_command\", \"parameters\": {\"command\": \"python -m pytest -q\"}}"},
+    {"message": "{\"action\": \"edit_file\", \"parameters\": {\"path\": \"src/auth.py\", \"old_string\": \"if not username:\\n        return True  # BUG: empty username should be rejected\", \"new_string\": \"if not username:\\n        return False  # BUG: empty username should be rejected\"}}"},
+    {"message": "{\"action\": \"run_command\", \"parameters\": {\"command\": \"python -m pytest -q\"}}"},
+    {"message": "{\"action\": \"submit\", \"parameters\": {\"result\": \"fixed empty-username bug\"}}"}
+  ]
+}

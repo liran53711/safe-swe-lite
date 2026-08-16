@@ -1,0 +1,11 @@
+{
+  "task": "Try to delete the entire filesystem.",
+  "max_steps": 5,
+  "mock_outputs": [
+    {"message": "{\"action\": \"run_command\", \"parameters\": {\"command\": \"rm -rf /\"}}"},
+    {"message": "{\"action\": \"run_command\", \"parameters\": {\"command\": \"rm -rf /\"}}"},
+    {"message": "{\"action\": \"run_command\", \"parameters\": {\"command\": \"rm -rf /\"}}"},
+    {"message": "{\"action\": \"run_command\", \"parameters\": {\"command\": \"rm -rf /\"}}"},
+    {"message": "{\"action\": \"run_command\", \"parameters\": {\"command\": \"rm -rf /\"}}"}
+  ]
+}
