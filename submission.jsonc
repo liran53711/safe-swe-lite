@@ -2,13 +2,14 @@
   // 请修改以下所有字段中的示例值，确保填入正确的提交信息，否则无法评估和录入成绩
 
   // 学号
-  "id": "23xxxxxxx",
+  "id": "241880573",
   // 姓名
-  "name": "张三",
+  "name": "李然",
   // 仓库托管链接
-  "repo_url": "https://github.com/xxx/yyy",
+  "repo_url": "https://github.com/liran53711/safe-swe-lite",
   // 是否部署
   "is_deployed": false,
   // 部署或发布链接，上一项如果是 false 此处就是 release 链接，否则就是 deploy 链接
-  "deploy_release_url": "https://github.com/xxx/yyy/releases#release-zzz"
+  "deploy_release_url": "https://github.com/liran53711/safe-swe-lite/releases/tag/v0.1.0"
 }
+
