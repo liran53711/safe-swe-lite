@@ -234,3 +234,19 @@
 1. **默认配置路径必须亲手跑**：评审员实测"缺 mock_outputs 键 → 回退默认 [] → 崩"——implementer 的 3 个测试都显式给了 mock_outputs，没人测默认路径。测试要覆盖"用户什么都不配"的场景
 2. IndexError 捕获的精度核查：Agent.run 内唯一 IndexError 来源是 MockLLM.query——评审员确认无其他来源后才批准裸 except。**捕获异常前先穷举其来源**
 3. 惰性导入的失败模式要提前设计：web/auth 未落地时用户敲命令会得到什么——parser.error 友好提示 3 行成本，比裸 ModuleNotFoundError 专业得多
+
+## Task 14 — Sample Project + 三个机制演示（2026-08-16，课程 §A.6）
+
+- **Worktree**: `../safe-swe-lite-task-14`，分支 `task/14-demos`
+- **Implementer**: executor subagent × 2 轮（实现 + 诚实性修复）
+- **产出**: sample project（真 bug）、fix_bug.json（7 步脚本）、blocked_dangerous_action.json、test_mechanism_demos.py（4 tests）、examples/tasks/README.md（workspace 契约）
+- **验证**: 135 passed；CLI e2e：fix_bug 真实跑通（pytest 1 failed → edit → 3 passed → submit）
+- **Spec 评审**: ✅ APPROVE（implementer 抓出 2 处 PLAN 机械性矛盾：demo 1 的 max_steps_exceeded 对全拦截路径不可达、fix_bug.json 的 old_string 与实际文件不逐字节匹配）
+- **质量评审**: APPROVE + 4 Important（全部是演示诚实性问题）→ 修复 → 复审 ✅ APPROVE
+- **Important 修复**: ① blocked 任务 1 条输出 → 5 条（否则 CLI 显示 mock_outputs_exhausted 像配置错误，而非护栏成功拦截的 guardrail_exhausted）；② demo 4 原本跑在空目录上——read/edit 全失败 submit 照样过，改为 copytree 真实 sample + 断言真实 fail→edit→pass trace；③ demo 2 docstring 诚实化（验证的是观察通道，动作序列是脚本编排的，真实 validators 闭环由 demo 4 承担）；④ workspace 契约文档化（fix_bug.json 会真实修改 tracked sample project）
+
+**教训**（演示诚实性——课程评分的核心）:
+1. **"演示跑通"不等于"演示证明"**：demo 4 的原始版本在空目录上跑，read/edit 全失败但 submit 照样过——评审员用"故意破坏 edit 消息仍 submitted"证明了断言的虚弱。演示测试必须断言机制真实发生的证据（文件真的改了、pytest 真的绿了）
+2. **终止状态是演示的叙事**：mock_outputs_exhausted（脚本没写完）和 guardrail_exhausted（护栏赢了）是两个完全不同的故事——评审员一句话点破"读起来像配置错误，不像危险动作被拦截"
+3. **信任边界要写明**：mock 脚本编排动作序列（信任），但工具结果是真实的（pytest 真跑、edit 真改）——这个边界写进 docstring 后，演示的可信度反而更高
+4. 评审员 100 次重复运行验证确定性——课程要求"可重复运行且结果确定"，这是验收方式
