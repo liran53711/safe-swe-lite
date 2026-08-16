@@ -1,0 +1,7 @@
+# 兼容课程书面要求：必须包含名为 unit-test 的 job
+# 主 CI 为 GitHub Actions（.github/workflows/ci.yml），此文件供 GitLab 环境使用
+unit-test:
+  image: python:3.11
+  script:
+    - pip install -e ".[dev,web,llm]"
+    - pytest -q
